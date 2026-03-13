@@ -6,13 +6,13 @@ import { getStorage } from "firebase/storage";
 import { getAnalytics } from "firebase/analytics";
 
 const firebaseConfig = {
-  apiKey: "AIzaSyDCAsix4f2qWmdzgZZ8FrW8xQUAxgyShIQ",
-  authDomain: "complexe-connect.firebaseapp.com",
-  projectId: "complexe-connect",
-  storageBucket: "complexe-connect.firebasestorage.app",
-  messagingSenderId: "99823311011",
-  appId: "1:99823311011:web:37281b37f10a13b43a8716",
-  measurementId: "G-R6K7TGLNRB"
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "AIzaSyDCAsix4f2qWmdzgZZ8FrW8xQUAxgyShIQ",
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || "complexe-connect.firebaseapp.com",
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || "complexe-connect",
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || "complexe-connect.firebasestorage.app",
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || "99823311011",
+  appId: import.meta.env.VITE_FIREBASE_APP_ID || "1:99823311011:web:37281b37f10a13b43a8716",
+  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID || "G-R6K7TGLNRB"
 };
 
 const app = initializeApp(firebaseConfig);
