@@ -1,0 +1,102 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "A user of the platform (student, professor, or admin).",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "description": "Full name of the user." },
+        "email": { "type": "string", "format": "email", "description": "Email address." },
+        "role": { "type": "string", "enum": ["student", "professor", "admin"], "description": "User role." },
+        "track": { "type": "string", "description": "Student track (e.g., Code & IA)." },
+        "progress": { "type": "number", "description": "Course progress percentage." },
+        "status": { "type": "string", "enum": ["active", "pending", "rejected"], "description": "Account status." },
+        "absences": { "type": "number", "description": "Number of absences." },
+        "specialty": { "type": "string", "description": "Professor specialty." },
+        "avatar": { "type": "string", "description": "Avatar URL." },
+        "joinedDate": { "type": "string", "description": "Date the user joined." },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Creation timestamp." }
+      },
+      "required": ["name", "email", "role"]
+    },
+    "Course": {
+      "title": "Course",
+      "description": "An educational module.",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "thematicId": { "type": "string" },
+        "image": { "type": "string" },
+        "status": { "type": "string", "enum": ["To Do", "In Progress", "Completed", "Inactive"] },
+        "duration": { "type": "string" },
+        "category": { "type": "string" },
+        "description": { "type": "string" },
+        "assignedLecturerId": { "type": "string" }
+      },
+      "required": ["title", "thematicId", "status"]
+    },
+    "Mission": {
+      "title": "Mission",
+      "description": "A challenge or project for students.",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "deadline": { "type": "string" },
+        "status": { "type": "string", "enum": ["Pending", "Submitted", "Validated", "Returned"] },
+        "courseId": { "type": "string" },
+        "points": { "type": "number" },
+        "studentId": { "type": "string" }
+      },
+      "required": ["title", "status", "courseId", "points"]
+    },
+    "Notification": {
+      "title": "Notification",
+      "description": "System or user notification.",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "message": { "type": "string" },
+        "time": { "type": "string" },
+        "type": { "type": "string", "enum": ["feedback", "system", "alert"] },
+        "read": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["title", "message", "type", "read"]
+    },
+    "Session": {
+      "title": "Session",
+      "description": "An academic session or promotion.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "startDate": { "type": "string" },
+        "endDate": { "type": "string" },
+        "isActive": { "type": "boolean" },
+        "activeModuleIds": { "type": "array", "items": { "type": "string" } }
+      },
+      "required": ["name", "isActive"]
+    },
+    "Application": {
+      "title": "Application",
+      "description": "A student application for a session.",
+      "type": "object",
+      "properties": {
+        "studentName": { "type": "string" },
+        "email": { "type": "string" },
+        "track": { "type": "string" },
+        "status": { "type": "string", "enum": ["Pending", "Approved", "Rejected"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["studentName", "email", "status"]
+    }
+  },
+  "firestore": {
+    "users": { "schema": "User", "description": "User profiles." },
+    "courses": { "schema": "Course", "description": "Educational modules." },
+    "missions": { "schema": "Mission", "description": "Student missions." },
+    "notifications": { "schema": "Notification", "description": "System notifications." },
+    "sessions": { "schema": "Session", "description": "Academic sessions." },
+    "applications": { "schema": "Application", "description": "Student applications." }
+  }
+}

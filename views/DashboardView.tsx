@@ -13,6 +13,7 @@ import { UserRole, Course, Lesson, Student, Mission, Resource, Notification, Cou
 import { COURSES, MISSIONS, NOTIFICATIONS, STUDENTS, LECTURERS, SESSIONS } from '../data';
 import { StatCard, ProgressBar, CourseCard, MissionCard, StatusBadge } from '../UIComponents';
 import { db, auth } from '../firebase';
+import { handleFirestoreError, OperationType } from '../firestoreUtils';
 import { 
   collection, 
   onSnapshot, 
@@ -64,51 +65,57 @@ const DashboardView: React.FC<Props> = ({ role, userName, onLogout, onOpenChat }
     const unsubCourses = onSnapshot(collection(db, 'courses'), (snapshot) => {
       const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Course));
       setLocalCourses(data.length > 0 ? data : COURSES);
-    });
+    }, (error) => handleFirestoreError(error, OperationType.GET, 'courses'));
 
     const unsubMissions = onSnapshot(collection(db, 'missions'), (snapshot) => {
       const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Mission));
       setLocalMissions(data.length > 0 ? data : MISSIONS);
-    });
+    }, (error) => handleFirestoreError(error, OperationType.GET, 'missions'));
 
     const unsubNotifications = onSnapshot(query(collection(db, 'notifications'), orderBy('createdAt', 'desc')), (snapshot) => {
       const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as unknown as Notification));
       setLocalNotifications(data.length > 0 ? data : NOTIFICATIONS);
-    });
+    }, (error) => handleFirestoreError(error, OperationType.GET, 'notifications'));
 
-    const unsubUsers = onSnapshot(collection(db, 'users'), (snapshot) => {
-      const allUsers = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      const students = allUsers.filter((u: any) => u.role === 'student').map((u: any) => ({
-        id: u.id,
-        name: u.name,
-        email: u.email,
-        track: u.track || 'N/A',
-        progress: u.progress || 0,
-        status: u.status || 'active',
-        absences: u.absences || 0
-      } as Student));
-      const lecturers = allUsers.filter((u: any) => u.role === 'professor').map((u: any) => ({
-        id: u.id,
-        name: u.name,
-        email: u.email,
-        specialty: u.specialty || 'Expert',
-        avatar: u.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${u.name}`,
-        joinedDate: u.joinedDate || 'N/A'
-      } as Lecturer));
-      
-      setLocalStudents(students.length > 0 ? students : STUDENTS);
-      setLocalLecturers(lecturers.length > 0 ? lecturers : LECTURERS);
-    });
+    let unsubUsers = () => {};
+    if (role === 'admin') {
+      unsubUsers = onSnapshot(collection(db, 'users'), (snapshot) => {
+        const allUsers = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        const students = allUsers.filter((u: any) => u.role === 'student').map((u: any) => ({
+          id: u.id,
+          name: u.name,
+          email: u.email,
+          track: u.track || 'N/A',
+          progress: u.progress || 0,
+          status: u.status || 'active',
+          absences: u.absences || 0
+        } as Student));
+        const lecturers = allUsers.filter((u: any) => u.role === 'professor').map((u: any) => ({
+          id: u.id,
+          name: u.name,
+          email: u.email,
+          specialty: u.specialty || 'Expert',
+          avatar: u.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${u.name}`,
+          joinedDate: u.joinedDate || 'N/A'
+        } as Lecturer));
+        
+        setLocalStudents(students.length > 0 ? students : STUDENTS);
+        setLocalLecturers(lecturers.length > 0 ? lecturers : LECTURERS);
+      }, (error) => handleFirestoreError(error, OperationType.GET, 'users'));
+    }
 
     const unsubSessions = onSnapshot(collection(db, 'sessions'), (snapshot) => {
       const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Session));
       setLocalSessions(data.length > 0 ? data : SESSIONS);
-    });
+    }, (error) => handleFirestoreError(error, OperationType.GET, 'sessions'));
 
-    const unsubApplications = onSnapshot(query(collection(db, 'applications'), orderBy('createdAt', 'desc')), (snapshot) => {
-      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      setLocalApplications(data);
-    });
+    let unsubApplications = () => {};
+    if (role === 'admin') {
+      unsubApplications = onSnapshot(query(collection(db, 'applications'), orderBy('createdAt', 'desc')), (snapshot) => {
+        const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        setLocalApplications(data);
+      }, (error) => handleFirestoreError(error, OperationType.GET, 'applications'));
+    }
 
     setLoading(false);
 
@@ -120,7 +127,7 @@ const DashboardView: React.FC<Props> = ({ role, userName, onLogout, onOpenChat }
       unsubSessions();
       unsubApplications();
     };
-  }, []);
+  }, [role]);
 
   const selectedCourse = localCourses.find(c => c.id === selectedCourseId);
   const selectedMission = localMissions.find(m => m.id === selectedMissionId);

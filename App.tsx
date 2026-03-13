@@ -9,7 +9,8 @@ import ApplicationView from './views/ApplicationView';
 import { ChatWidget } from './ChatWidget';
 import { auth, db } from './firebase';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, getDocFromServer } from 'firebase/firestore';
+import { handleFirestoreError, OperationType } from './firestoreUtils';
 
 const App: React.FC = () => {
   const [view, setView] = useState<ViewState>('home');
@@ -19,6 +20,17 @@ const App: React.FC = () => {
   const [isChatOpen, setIsChatOpen] = useState(false);
 
   useEffect(() => {
+    async function testConnection() {
+      try {
+        await getDocFromServer(doc(db, 'test', 'connection'));
+      } catch (error) {
+        if(error instanceof Error && error.message.includes('the client is offline')) {
+          console.error("Please check your Firebase configuration. ");
+        }
+      }
+    }
+    testConnection();
+
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user) {
         // Fetch user role from Firestore
@@ -35,7 +47,7 @@ const App: React.FC = () => {
           }
           setView('dashboard');
         } catch (error) {
-          console.error("Error fetching user role:", error);
+          handleFirestoreError(error, OperationType.GET, `users/${user.uid}`);
           setUserRole('student');
           setUserName(user.email?.split('@')[0] || 'Utilisateur');
           setView('dashboard');
