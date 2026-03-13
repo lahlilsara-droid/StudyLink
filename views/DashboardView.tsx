@@ -34,6 +34,7 @@ const DashboardView: React.FC<Props> = ({ role, userName, onLogout, onOpenChat }
   const [selectedMissionId, setSelectedMissionId] = useState<string | null>(null);
   const [correctingMissionId, setCorrectingMissionId] = useState<string | null>(null);
   const [showNotifications, setShowNotifications] = useState(false);
+  const [showProfile, setShowProfile] = useState(false);
   const [copyFeedback, setCopyFeedback] = useState(false);
   
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -363,15 +364,78 @@ const DashboardView: React.FC<Props> = ({ role, userName, onLogout, onOpenChat }
                   <Bell size={20} className="md:w-6 md:h-6" />
                   {unreadCount > 0 && <span className="absolute top-2 right-2 md:top-3 md:right-3 w-3 h-3 md:w-4 md:h-4 bg-red-500 rounded-full border-2 border-white animate-bounce"></span>}
                 </button>
-                <div className="flex items-center gap-3 md:gap-4">
+                <div className="flex items-center gap-3 md:gap-4 cursor-pointer group" onClick={() => setShowProfile(true)}>
                   <div className="text-right">
-                    <p className="text-xs md:text-sm font-black text-[#2B3674]">{userName}</p>
+                    <p className="text-xs md:text-sm font-black text-[#2B3674] group-hover:text-[#4318FF] transition-colors">{userName}</p>
                     <p className="text-[8px] md:text-[10px] font-bold text-[#A3AED0] uppercase tracking-widest">{role}</p>
                   </div>
-                  <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${role}`} className="w-12 h-12 md:w-14 md:h-14 rounded-xl md:rounded-2xl border-2 border-white shadow-md bg-white transition-transform hover:rotate-3" alt="avatar" />
+                  <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${role}`} className="w-12 h-12 md:w-14 md:h-14 rounded-xl md:rounded-2xl border-2 border-white shadow-md bg-white transition-transform group-hover:rotate-3" alt="avatar" />
                 </div>
               </div>
             </header>
+
+            {/* Notifications Panel */}
+            <AnimatePresence>
+              {showNotifications && (
+                <motion.div 
+                  initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                  className="absolute right-4 md:right-16 top-24 md:top-32 w-80 md:w-96 bg-white rounded-[32px] shadow-2xl border border-slate-50 z-[100] overflow-hidden"
+                >
+                  <div className="p-6 border-b border-slate-50 flex justify-between items-center bg-[#4318FF] text-white">
+                    <h3 className="font-black uppercase tracking-widest text-xs">Notifications</h3>
+                    <button onClick={() => setShowNotifications(false)} className="hover:rotate-90 transition-transform"><X size={18} /></button>
+                  </div>
+                  <div className="max-h-[400px] overflow-y-auto p-4 space-y-3 custom-scrollbar">
+                    {localNotifications.length > 0 ? localNotifications.map(n => (
+                      <div key={n.id} className={`p-4 rounded-2xl border transition-all ${n.read ? 'bg-white border-slate-50' : 'bg-[#F4F7FE] border-[#4318FF]/10'}`}>
+                        <div className="flex justify-between items-start mb-1">
+                          <p className="font-black text-[#2B3674] text-[10px] uppercase tracking-tight">{n.title}</p>
+                          <span className="text-[8px] font-bold text-[#A3AED0]">{n.time}</span>
+                        </div>
+                        <p className="text-[10px] font-bold text-[#A3AED0] leading-relaxed">{n.message}</p>
+                      </div>
+                    )) : (
+                      <div className="py-10 text-center space-y-2">
+                        <Bell size={32} className="text-slate-200 mx-auto" />
+                        <p className="text-xs font-bold text-[#A3AED0]">Aucune notification</p>
+                      </div>
+                    )}
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            {/* Profile Modal */}
+            <AnimatePresence>
+              {showProfile && (
+                <div className="fixed inset-0 z-[200] flex items-center justify-center p-6">
+                  <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setShowProfile(false)} className="absolute inset-0 bg-[#2B3674]/80 backdrop-blur-md" />
+                  <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9, y: 20 }} className="relative w-full max-w-md bg-white rounded-[60px] shadow-2xl overflow-hidden">
+                    <div className="h-32 bg-gradient-to-r from-[#4318FF] to-[#868CFF]" />
+                    <div className="px-10 pb-10 -mt-16 text-center space-y-6">
+                      <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${role}`} className="w-32 h-32 rounded-[40px] border-8 border-white bg-white shadow-2xl mx-auto" alt="profile" />
+                      <div>
+                        <h3 className="text-3xl font-black text-[#2B3674] tracking-tight">{userName}</h3>
+                        <p className="text-sm font-bold text-[#A3AED0] uppercase tracking-widest">{role} StudyLink</p>
+                      </div>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="p-4 bg-[#F4F7FE] rounded-3xl border border-white">
+                          <p className="text-xl font-black text-[#4318FF]">12</p>
+                          <p className="text-[8px] font-bold text-[#A3AED0] uppercase tracking-widest">Badges</p>
+                        </div>
+                        <div className="p-4 bg-[#F4F7FE] rounded-3xl border border-white">
+                          <p className="text-xl font-black text-[#2B3674]">85%</p>
+                          <p className="text-[8px] font-bold text-[#A3AED0] uppercase tracking-widest">Score</p>
+                        </div>
+                      </div>
+                      <button onClick={() => setShowProfile(false)} className="w-full py-5 bg-[#2B3674] text-white rounded-[28px] font-black uppercase tracking-widest text-[10px]">Fermer le profil</button>
+                    </div>
+                  </motion.div>
+                </div>
+              )}
+            </AnimatePresence>
 
             <AnimatePresence mode="wait">
               {activeTab === 'dashboard' && role === 'admin' && (
@@ -449,15 +513,33 @@ const DashboardView: React.FC<Props> = ({ role, userName, onLogout, onOpenChat }
               )}
 
               {activeTab === 'modules' && !selectedCourseId && (
-                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-10">
-                   {filteredCourses.map(course => (
-                     <CourseCard 
-                       key={course.id} 
-                       course={course} 
-                       onClick={() => setSelectedCourseId(course.id)} 
-                       showAdminControls={role === 'professor'}
-                     />
-                   ))}
+                <div className="space-y-10">
+                  {role === 'professor' && (
+                    <div className="flex justify-end">
+                      <button 
+                        onClick={() => setIsEditingCourse({ id: '', title: '', description: '', lessons: [], status: 'Draft', points: 1000 })}
+                        className="px-10 py-5 bg-[#4318FF] text-white rounded-[28px] font-black uppercase tracking-widest text-[11px] shadow-2xl shadow-[#4318FF]/20 flex items-center gap-3 hover:scale-105 transition-all"
+                      >
+                        <Plus size={18} /> Créer un nouveau module
+                      </button>
+                    </div>
+                  )}
+                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-10">
+                     {filteredCourses.length > 0 ? filteredCourses.map(course => (
+                       <CourseCard 
+                         key={course.id} 
+                         course={course} 
+                         onClick={() => setSelectedCourseId(course.id)} 
+                         showAdminControls={role === 'professor'}
+                       />
+                     )) : (
+                       <div className="col-span-full py-20 text-center bg-white rounded-[60px] border-4 border-dashed border-slate-50">
+                          <BookOpen size={48} className="text-slate-200 mx-auto mb-4" />
+                          <h4 className="text-xl font-black text-[#2B3674] uppercase">Aucun module trouvé</h4>
+                          <p className="text-sm font-bold text-[#A3AED0]">Commencez par ajouter des modules ou changez vos filtres.</p>
+                       </div>
+                     )}
+                  </div>
                 </div>
               )}
 
@@ -655,15 +737,15 @@ const SupportView: React.FC<{ role: UserRole; onOpenChat: () => void }> = ({ rol
                   </div>
                </div>
                <div className="grid grid-cols-1 gap-4 relative z-10">
-                  <button className="flex items-center justify-between p-7 bg-white/10 hover:bg-white/20 rounded-[32px] transition-all group/btn border border-white/5">
+                  <button onClick={() => alert("Gestion des effectifs en cours de déploiement")} className="flex items-center justify-between p-7 bg-white/10 hover:bg-white/20 rounded-[32px] transition-all group/btn border border-white/5">
                      <span className="font-black text-xs uppercase tracking-[0.2em]">Effectifs par Promotion</span>
                      <ChevronRight size={20} className="group-hover/btn:translate-x-1 transition-transform" />
                   </button>
-                  <button className="flex items-center justify-between p-7 bg-white/10 hover:bg-white/20 rounded-[32px] transition-all group/btn border border-white/5">
+                  <button onClick={() => alert("Statistiques en cours de génération")} className="flex items-center justify-between p-7 bg-white/10 hover:bg-white/20 rounded-[32px] transition-all group/btn border border-white/5">
                      <span className="font-black text-xs uppercase tracking-[0.2em]">Statistiques de Réussite</span>
                      <ChevronRight size={20} className="group-hover/btn:translate-x-1 transition-transform" />
                   </button>
-                  <button className="flex items-center justify-between p-7 bg-white/10 hover:bg-white/20 rounded-[32px] transition-all group/btn border border-white/5">
+                  <button onClick={() => alert("Ouverture du canal de communication direct")} className="flex items-center justify-between p-7 bg-white/10 hover:bg-white/20 rounded-[32px] transition-all group/btn border border-white/5">
                      <span className="font-black text-xs uppercase tracking-[0.2em]">Contact Direction Pédagogique</span>
                      <ChevronRight size={20} className="group-hover/btn:translate-x-1 transition-transform" />
                   </button>
@@ -772,7 +854,7 @@ const ProfessorMissionCenter: React.FC<{
           </div>
        ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-             {missions.map(m => (
+             {missions.length > 0 ? missions.map(m => (
                 <div key={m.id} className="bg-white p-10 rounded-[60px] shadow-sm border border-slate-50 space-y-6 group hover:shadow-xl transition-all">
                    <div className="flex justify-between items-start">
                       <div className="w-12 h-12 rounded-2xl bg-[#F4F7FE] text-[#4318FF] flex items-center justify-center">
@@ -793,7 +875,13 @@ const ProfessorMissionCenter: React.FC<{
                       <span className="text-[10px] font-bold text-[#A3AED0] uppercase tracking-widest">Échéance: {m.deadline}</span>
                    </div>
                 </div>
-             ))}
+             )) : (
+                <div className="col-span-full py-24 text-center bg-white rounded-[60px] border-4 border-dashed border-slate-50">
+                   <Target size={48} className="text-slate-200 mx-auto mb-4" />
+                   <h4 className="text-xl font-black text-[#2B3674] uppercase">Aucune mission créée</h4>
+                   <p className="text-sm font-bold text-[#A3AED0]">Commencez par créer une mission pour vos étudiants.</p>
+                </div>
+             )}
           </div>
        )}
     </motion.div>
@@ -948,7 +1036,13 @@ const ProfessorClassesView: React.FC<{ students: Student[], sessions: Session[],
                      </div>
                   </div>
                </div>
-               <button className="w-full py-4 md:py-5 bg-[#2B3674] text-white rounded-[24px] md:rounded-[28px] font-black text-[10px] md:text-[11px] uppercase tracking-widest hover:bg-[#4318FF] transition-all shadow-xl shadow-[#2B3674]/20 flex items-center justify-center gap-3 relative z-10">
+               <button 
+                 onClick={() => {
+                   const element = document.getElementById('student-table');
+                   element?.scrollIntoView({ behavior: 'smooth' });
+                 }}
+                 className="w-full py-4 md:py-5 bg-[#2B3674] text-white rounded-[24px] md:rounded-[28px] font-black text-[10px] md:text-[11px] uppercase tracking-widest hover:bg-[#4318FF] transition-all shadow-xl shadow-[#2B3674]/20 flex items-center justify-center gap-3 relative z-10"
+               >
                   <List size={16} /> Voir la liste des étudiants
                </button>
             </div>
@@ -956,7 +1050,7 @@ const ProfessorClassesView: React.FC<{ students: Student[], sessions: Session[],
         </div>
       </div>
 
-      <div className="bg-white rounded-[32px] md:rounded-[60px] shadow-sm border border-slate-50 overflow-hidden">
+      <div id="student-table" className="bg-white rounded-[32px] md:rounded-[60px] shadow-sm border border-slate-50 overflow-hidden">
          <div className="p-6 md:p-10 border-b border-slate-50 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 md:gap-6">
             <div>
                <h3 className="text-lg md:text-xl font-black text-[#2B3674] uppercase tracking-tighter">Registre d'Excellence</h3>
@@ -1023,10 +1117,10 @@ const AdminTowerDashboard: React.FC<{ students: Student[], sessions: Session[] }
   return (
     <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} className="space-y-8 md:space-y-12 pb-20">
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-8">
-        <StatCard title="Candidatures" value="156" icon={ClipboardList} color="bg-blue-50 text-blue-600" />
-        <StatCard title="Étudiants Actifs" value={students.length.toString()} icon={Users} color="bg-green-50 text-green-600" />
-        <StatCard title="Experts Guests" value="8" icon={Award} color="bg-purple-50 text-purple-600" />
-        <StatCard title="Taux de Réussite" value="94%" icon={TrendingUp} color="bg-orange-50 text-orange-600" />
+        <div onClick={() => alert("Détails des candidatures")} className="cursor-pointer transition-transform hover:scale-105"><StatCard title="Candidatures" value="156" icon={ClipboardList} color="bg-blue-50 text-blue-600" /></div>
+        <div onClick={() => alert("Détails des étudiants actifs")} className="cursor-pointer transition-transform hover:scale-105"><StatCard title="Étudiants Actifs" value={students.length.toString()} icon={Users} color="bg-green-50 text-green-600" /></div>
+        <div onClick={() => alert("Détails des experts guests")} className="cursor-pointer transition-transform hover:scale-105"><StatCard title="Experts Guests" value="8" icon={Award} color="bg-purple-50 text-purple-600" /></div>
+        <div onClick={() => alert("Détails du taux de réussite")} className="cursor-pointer transition-transform hover:scale-105"><StatCard title="Taux de Réussite" value="94%" icon={TrendingUp} color="bg-orange-50 text-orange-600" /></div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 md:gap-12">
@@ -1078,7 +1172,10 @@ const AdminTowerDashboard: React.FC<{ students: Student[], sessions: Session[] }
             ) : (
               <p className="text-xs md:text-sm font-bold text-[#A3AED0] text-center py-10">Aucune promotion active pour le moment.</p>
             )}
-            <button className="w-full py-4 md:py-5 border-4 border-dashed border-[#4318FF]/20 text-[#4318FF] rounded-[24px] md:rounded-[28px] font-black text-[9px] md:text-[10px] uppercase tracking-widest hover:bg-[#4318FF]/5 transition-all flex items-center justify-center gap-3">
+            <button 
+              onClick={() => alert("Ouverture du formulaire de création de session")}
+              className="w-full py-4 md:py-5 border-4 border-dashed border-[#4318FF]/20 text-[#4318FF] rounded-[24px] md:rounded-[28px] font-black text-[9px] md:text-[10px] uppercase tracking-widest hover:bg-[#4318FF]/5 transition-all flex items-center justify-center gap-3"
+            >
                <Zap size={16} /> Ouvrir une nouvelle session excellence
             </button>
          </div>
@@ -1534,18 +1631,24 @@ const StudentPortfolioView: React.FC<{ userName: string; missions: Mission[]; on
              </div>
           </div>
        </div>
-       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-10">
-          {validatedMissions.map(mission => (
-            <motion.div key={mission.id} whileHover={{ y: -10 }} onClick={() => onViewProject(mission.id)} className="bg-white rounded-[32px] md:rounded-[48px] overflow-hidden shadow-sm hover:shadow-2xl transition-all border border-slate-100 group cursor-pointer p-6 md:p-8 space-y-4">
-               <h3 className="text-lg md:text-xl font-black text-[#2B3674] tracking-tight">{mission?.title || 'Mission'}</h3>
-               <p className="text-xs md:text-sm font-bold text-[#A3AED0] line-clamp-2">{mission.description}</p>
-               <div className="pt-4 md:pt-6 border-t border-slate-50 flex justify-between items-center">
-                  <span className="text-[9px] md:text-[10px] font-black uppercase text-[#4318FF]">Score A+</span>
-                  <ExternalLink size={16} className="text-[#A3AED0]" />
+               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-10">
+                  {validatedMissions.length > 0 ? validatedMissions.map(mission => (
+                    <motion.div key={mission.id} whileHover={{ y: -10 }} onClick={() => onViewProject(mission.id)} className="bg-white rounded-[32px] md:rounded-[48px] overflow-hidden shadow-sm hover:shadow-2xl transition-all border border-slate-100 group cursor-pointer p-6 md:p-8 space-y-4">
+                       <h3 className="text-lg md:text-xl font-black text-[#2B3674] tracking-tight">{mission?.title || 'Mission'}</h3>
+                       <p className="text-xs md:text-sm font-bold text-[#A3AED0] line-clamp-2">{mission.description}</p>
+                       <div className="pt-4 md:pt-6 border-t border-slate-50 flex justify-between items-center">
+                          <span className="text-[9px] md:text-[10px] font-black uppercase text-[#4318FF]">Score A+</span>
+                          <ExternalLink size={16} className="text-[#A3AED0]" />
+                       </div>
+                    </motion.div>
+                  )) : (
+                    <div className="col-span-full py-20 text-center bg-white rounded-[60px] border-4 border-dashed border-slate-50">
+                        <Briefcase size={48} className="text-slate-200 mx-auto mb-4" />
+                        <h4 className="text-xl font-black text-[#2B3674] uppercase">Portfolio vide</h4>
+                        <p className="text-sm font-bold text-[#A3AED0]">Validez des missions pour les voir apparaître ici.</p>
+                    </div>
+                  )}
                </div>
-            </motion.div>
-          ))}
-       </div>
     </motion.div>
   );
 };
@@ -1632,13 +1735,18 @@ const GlobalSettings: React.FC<{ role: UserRole }> = ({ role }) => {
           <button onClick={() => setActiveSubTab('profile')} className={`text-sm font-black uppercase tracking-[0.2em] pb-6 relative transition-all ${activeSubTab === 'profile' ? 'text-[#4318FF]' : 'text-[#A3AED0]'}`}>Profil Excellence {activeSubTab === 'profile' && <motion.div layoutId="set-tab" className="absolute bottom-[-3px] left-0 right-0 h-[6px] bg-[#4318FF] rounded-full" />}</button>
           {role === 'admin' && <button onClick={() => setActiveSubTab('system')} className={`text-sm font-black uppercase tracking-[0.2em] pb-6 relative transition-all ${activeSubTab === 'system' ? 'text-[#4318FF]' : 'text-[#A3AED0]'}`}>Système {activeSubTab === 'system' && <motion.div layoutId="set-tab" className="absolute bottom-[-3px] left-0 right-0 h-[6px] bg-[#4318FF] rounded-full" />}</button>}
        </div>
-       {activeSubTab === 'profile' ? (
-         <div className="lg:col-span-2 bg-white p-16 rounded-[60px] shadow-sm border border-slate-50 space-y-12 text-center py-32">
-            <Camera size={48} className="mx-auto text-[#A3AED0] mb-8" />
-            <p className="text-xl font-black text-[#2B3674]">Paramètres du Profil Excellence</p>
-            <p className="text-sm font-bold text-[#A3AED0]">Modifiez vos informations personnelles et identifiants StudyLink Hub.</p>
-         </div>
-       ) : (
+        {activeSubTab === 'profile' ? (
+          <div className="lg:col-span-2 bg-white p-16 rounded-[60px] shadow-sm border border-slate-50 space-y-12 text-center py-20">
+             <Camera size={48} className="mx-auto text-[#A3AED0] mb-8" />
+             <p className="text-xl font-black text-[#2B3674]">Paramètres du Profil Excellence</p>
+             <p className="text-sm font-bold text-[#A3AED0]">Modifiez vos informations personnelles et identifiants StudyLink Hub.</p>
+             <div className="pt-10 border-t border-slate-50">
+                <button onClick={() => window.location.reload()} className="px-10 py-5 bg-[#2B3674] text-white rounded-[28px] font-black uppercase tracking-widest text-[10px] hover:bg-[#4318FF] transition-all flex items-center gap-3 mx-auto">
+                   <LogOut size={16} /> Se déconnecter de la session
+                </button>
+             </div>
+          </div>
+        ) : (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 text-center">
              <div className="bg-white p-12 rounded-[60px] shadow-sm border border-slate-50 py-24"><Fingerprint size={32} className="mx-auto text-[#4318FF] mb-6" /><p className="font-black">Sécurité Infrastructure</p></div>
              <div className="bg-white p-12 rounded-[60px] shadow-sm border border-slate-50 py-24"><ShieldCheck size={32} className="mx-auto text-green-500 mb-6" /><p className="font-black">Gouvernance Système</p></div>
