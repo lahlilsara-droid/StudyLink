@@ -1,0 +1,74 @@
+
+<!DOCTYPE html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>StudyLink - Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+      :root {
+        --brand-purple: #4318FF;
+        --bg-light: #F4F7FE;
+      }
+      body {
+        font-family: 'Plus Jakarta Sans', sans-serif;
+        background-color: var(--bg-light);
+        color: #2B3674;
+      }
+      .sidebar-purple {
+        background-color: var(--brand-purple);
+      }
+      /* Precise Sidebar Cutout Effect */
+      .active-pill {
+        background: var(--bg-light);
+        color: var(--brand-purple);
+        border-radius: 40px 0 0 40px;
+        position: relative;
+        margin-left: 1.5rem;
+      }
+      
+      .card-shadow {
+        box-shadow: 0px 18px 40px rgba(112, 144, 176, 0.12);
+      }
+      .table-header {
+        color: #A3AED0;
+        font-weight: 700;
+        font-size: 12px;
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+      }
+      .status-pill {
+        padding: 4px 12px;
+        border-radius: 8px;
+        font-weight: 700;
+        font-size: 12px;
+      }
+      .status-pending { background: #FFF7ED; color: #F59E0B; }
+      .status-accepted { background: #F0FDF4; color: #22C55E; }
+      .status-rejected { background: #FEF2F2; color: #EF4444; }
+
+      ::-webkit-scrollbar { width: 6px; }
+      ::-webkit-scrollbar-track { background: transparent; }
+      ::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 10px; }
+    </style>
+    <script type="importmap">
+    {
+      "imports": {
+        "lucide-react": "https://esm.sh/lucide-react@^0.564.0",
+        "framer-motion": "https://esm.sh/framer-motion@^12.34.0",
+        "react-dom/": "https://esm.sh/react-dom@^19.2.4/",
+        "react/": "https://esm.sh/react@^19.2.4/",
+        "react": "https://esm.sh/react@^19.2.4",
+        "@google/genai": "https://esm.sh/@google/genai@^1.41.0"
+      }
+    }
+    </script>
+  <link rel="stylesheet" href="/index.css">
+</head>
+  <body class="antialiased overflow-hidden">
+    <div id="root"></div>
+  <script type="module" src="/index.tsx"></script>
+</body>
+</html>
