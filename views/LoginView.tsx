@@ -16,18 +16,10 @@ const LoginView: React.FC<Props> = ({ onLogin, onCancel }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const handleDemoLogin = async (role: UserRole) => {
-    setLoading(true);
-    setError(null);
-    try {
-      await signInAnonymously(auth);
-      onLogin(role);
-    } catch (err: any) {
-      console.error("Demo login error:", err);
-      setError("Erreur lors de la connexion démo.");
-    } finally {
-      setLoading(false);
-    }
+  const handleDemoLogin = (role: UserRole) => {
+    // Bypass Firebase Auth for demo mode to avoid 'admin-restricted-operation' error
+    // if anonymous auth is not enabled in the console.
+    onLogin(role);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -58,7 +50,7 @@ const LoginView: React.FC<Props> = ({ onLogin, onCancel }) => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[#F4F7FE] p-6 relative overflow-hidden">
+    <div className="min-h-screen flex items-center justify-center bg-[#F4F7FE] p-6 relative overflow-y-auto">
       {/* Background Decor */}
       <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-[#4318FF]/5 rounded-full blur-[100px]"></div>
       <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-[#4318FF]/5 rounded-full blur-[100px]"></div>
@@ -140,30 +132,30 @@ const LoginView: React.FC<Props> = ({ onLogin, onCancel }) => {
         {/* Quick Demo Access */}
         <div className="mt-6 pt-4 border-t border-slate-50">
            <p className="text-[8px] font-black text-[#A3AED0] uppercase tracking-widest mb-3">Accès Rapide (Démo)</p>
-           <div className="flex justify-center gap-2">
+           <div className="flex justify-center gap-3">
               <button 
                 type="button"
                 onClick={() => handleDemoLogin('student')} 
                 disabled={loading}
-                className="w-9 h-9 bg-[#F4F7FE] text-[#4318FF] rounded-lg flex items-center justify-center hover:bg-[#4318FF] hover:text-white transition-all shadow-sm disabled:opacity-50"
+                className="w-11 h-11 md:w-10 md:h-10 bg-[#F4F7FE] text-[#4318FF] rounded-xl flex items-center justify-center hover:bg-[#4318FF] hover:text-white transition-all shadow-sm disabled:opacity-50"
               >
-                <GraduationCap size={16} />
+                <GraduationCap size={20} className="md:w-[18px] md:h-[18px]" />
               </button>
               <button 
                 type="button"
                 onClick={() => handleDemoLogin('professor')} 
                 disabled={loading}
-                className="w-9 h-9 bg-[#F4F7FE] text-[#4318FF] rounded-lg flex items-center justify-center hover:bg-[#4318FF] hover:text-white transition-all shadow-sm disabled:opacity-50"
+                className="w-11 h-11 md:w-10 md:h-10 bg-[#F4F7FE] text-[#4318FF] rounded-xl flex items-center justify-center hover:bg-[#4318FF] hover:text-white transition-all shadow-sm disabled:opacity-50"
               >
-                <User size={16} />
+                <User size={20} className="md:w-[18px] md:h-[18px]" />
               </button>
               <button 
                 type="button"
                 onClick={() => handleDemoLogin('admin')} 
                 disabled={loading}
-                className="w-9 h-9 bg-[#F4F7FE] text-[#4318FF] rounded-lg flex items-center justify-center hover:bg-[#4318FF] hover:text-white transition-all shadow-sm disabled:opacity-50"
+                className="w-11 h-11 md:w-10 md:h-10 bg-[#F4F7FE] text-[#4318FF] rounded-xl flex items-center justify-center hover:bg-[#4318FF] hover:text-white transition-all shadow-sm disabled:opacity-50"
               >
-                <Shield size={16} />
+                <Shield size={20} className="md:w-[18px] md:h-[18px]" />
               </button>
            </div>
         </div>

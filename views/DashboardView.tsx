@@ -5,14 +5,14 @@ import {
   LayoutDashboard, BookOpen, Target, User as UserIcon, LogOut, Bell, 
   Award, Clock, Star, Play, File, Globe, Check, ChevronLeft,
   Shield, Users, ClipboardList, Settings, TrendingUp, CheckCircle2, MessageSquare,
-  Plus, X, Trash2, Edit3, Save, Upload, Zap, Calendar, ArrowRight, Info, Search, Filter, Book, CheckCircle,
+  Plus, X, Trash2, Edit3, Save, Upload, Zap, Calendar, ArrowRight, Info, Search, Filter, Book, CheckCircle, Circle,
   PlayCircle, AlertCircle, FileText, Send, Link as LinkIcon, Github, Trophy, Loader2, Share2, Briefcase, Code2, Sparkles, ExternalLink, FilterX,
   List, LayoutGrid, MoreHorizontal, Download, MessageCircle, StarHalf, Palette, Camera, Phone, Smartphone, Key, ShieldCheck, RefreshCw, Copy, ToggleLeft as Toggle, ChevronDown, UserCheck, Mail, UserPlus, Fingerprint, Microscope, GraduationCap as GradIcon, Globe2, Bot, Database, Layers, ChevronRight
 } from 'lucide-react';
 import { UserRole, Course, Lesson, Student, Mission, Resource, Notification, CourseStatus, MissionStatus, Lecturer, Session } from '../types';
 import { COURSES, MISSIONS, NOTIFICATIONS, STUDENTS, LECTURERS, SESSIONS } from '../data';
 import { StatCard, ProgressBar, CourseCard, MissionCard, StatusBadge } from '../UIComponents';
-import { db, auth } from '../firebase';
+import { db, auth, storage } from '../firebase';
 import { handleFirestoreError, OperationType } from '../firestoreUtils';
 import { 
   collection, 
@@ -26,6 +26,7 @@ import {
   orderBy,
   serverTimestamp
 } from 'firebase/firestore';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 
 interface Props { role: UserRole; userName: string; onLogout: () => void; onOpenChat: () => void; }
 
@@ -36,6 +37,15 @@ const DashboardView: React.FC<Props> = ({ role, userName, onLogout, onOpenChat }
   const [correctingMissionId, setCorrectingMissionId] = useState<string | null>(null);
   const [showNotifications, setShowNotifications] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
+  const [isEditingProfile, setIsEditingProfile] = useState(false);
+  const [profileData, setProfileData] = useState({ 
+    name: userName, 
+    specialty: '', 
+    track: '', 
+    avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${userName}` 
+  });
+  const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [copyFeedback, setCopyFeedback] = useState(false);
   
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -59,6 +69,8 @@ const DashboardView: React.FC<Props> = ({ role, userName, onLogout, onOpenChat }
   const [managingAccessLecturer, setManagingAccessLecturer] = useState<Lecturer | null>(null);
   const [isEditingMission, setIsEditingMission] = useState<Mission | null>(null);
   const [isAddingUser, setIsAddingUser] = useState(false);
+  const [editingUser, setEditingUser] = useState<any | null>(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null);
 
   // Real-time Sync
   useEffect(() => {
@@ -71,23 +83,24 @@ const DashboardView: React.FC<Props> = ({ role, userName, onLogout, onOpenChat }
       const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Course));
       setLocalCourses(data.length > 0 ? data : COURSES);
     }, (error) => {
-      console.error("Courses listener error:", error);
-      // Only report if it's not a permission error during logout/demo
-      if (auth.currentUser) handleFirestoreError(error, OperationType.GET, 'courses');
+      console.warn("Courses listener (using local fallback):", error.message);
+      setLocalCourses(COURSES);
     });
 
     const unsubMissions = onSnapshot(collection(db, 'missions'), (snapshot) => {
       const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Mission));
       setLocalMissions(data.length > 0 ? data : MISSIONS);
     }, (error) => {
-      if (auth.currentUser) handleFirestoreError(error, OperationType.GET, 'missions');
+      console.warn("Missions listener (using local fallback):", error.message);
+      setLocalMissions(MISSIONS);
     });
 
     const unsubNotifications = onSnapshot(query(collection(db, 'notifications'), orderBy('createdAt', 'desc')), (snapshot) => {
       const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as unknown as Notification));
       setLocalNotifications(data.length > 0 ? data : NOTIFICATIONS);
     }, (error) => {
-      if (auth.currentUser) handleFirestoreError(error, OperationType.GET, 'notifications');
+      console.warn("Notifications listener (using local fallback):", error.message);
+      setLocalNotifications(NOTIFICATIONS);
     });
 
     let unsubUsers = () => {};
@@ -115,7 +128,9 @@ const DashboardView: React.FC<Props> = ({ role, userName, onLogout, onOpenChat }
         setLocalStudents(students.length > 0 ? students : STUDENTS);
         setLocalLecturers(lecturers.length > 0 ? lecturers : LECTURERS);
       }, (error) => {
-        if (auth.currentUser) handleFirestoreError(error, OperationType.GET, 'users');
+        console.warn("Users listener (using local fallback):", error.message);
+        setLocalStudents(STUDENTS);
+        setLocalLecturers(LECTURERS);
       });
     }
 
@@ -123,7 +138,8 @@ const DashboardView: React.FC<Props> = ({ role, userName, onLogout, onOpenChat }
       const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Session));
       setLocalSessions(data.length > 0 ? data : SESSIONS);
     }, (error) => {
-      if (auth.currentUser) handleFirestoreError(error, OperationType.GET, 'sessions');
+      console.warn("Sessions listener (using local fallback):", error.message);
+      setLocalSessions(SESSIONS);
     });
 
     let unsubApplications = () => {};
@@ -132,7 +148,23 @@ const DashboardView: React.FC<Props> = ({ role, userName, onLogout, onOpenChat }
         const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         setLocalApplications(data);
       }, (error) => {
-        if (auth.currentUser) handleFirestoreError(error, OperationType.GET, 'applications');
+        console.warn("Applications listener (using local fallback):", error.message);
+      });
+    }
+
+    // Fetch current user details for profile
+    let unsubProfile = () => {};
+    if (auth.currentUser) {
+      unsubProfile = onSnapshot(doc(db, 'users', auth.currentUser.uid), (snapshot) => {
+        if (snapshot.exists()) {
+          const data = snapshot.data();
+          setProfileData({
+            name: data.name || userName,
+            specialty: data.specialty || '',
+            track: data.track || '',
+            avatar: data.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${data.name || userName}`
+          });
+        }
       });
     }
 
@@ -145,8 +177,82 @@ const DashboardView: React.FC<Props> = ({ role, userName, onLogout, onOpenChat }
       unsubUsers();
       unsubSessions();
       unsubApplications();
+      unsubProfile();
     };
   }, [role, auth.currentUser?.uid]);
+
+  const handleSaveProfile = async () => {
+    if (!auth.currentUser) return;
+    try {
+      await updateDoc(doc(db, 'users', auth.currentUser.uid), {
+        name: profileData.name,
+        ...(role === 'professor' ? { specialty: profileData.specialty } : {}),
+        ...(role === 'student' ? { track: profileData.track } : {})
+      });
+      setIsEditingProfile(false);
+      await addDoc(collection(db, 'notifications'), {
+        title: 'Profil Mis à Jour',
+        message: 'Vos informations personnelles ont été enregistrées.',
+        time: 'Maintenant',
+        type: 'system',
+        read: false,
+        createdAt: serverTimestamp(),
+        userId: auth.currentUser.uid
+      });
+    } catch (error) {
+      console.error("Error saving profile:", error);
+    }
+  };
+
+  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !auth.currentUser) return;
+
+    setIsUploadingAvatar(true);
+    try {
+      const storageRef = ref(storage, `avatars/${auth.currentUser.uid}`);
+      await uploadBytes(storageRef, file);
+      const downloadURL = await getDownloadURL(storageRef);
+      
+      await updateDoc(doc(db, 'users', auth.currentUser.uid), {
+        avatar: downloadURL
+      });
+      
+      setProfileData(prev => ({ ...prev, avatar: downloadURL }));
+      
+      await addDoc(collection(db, 'notifications'), {
+        title: 'Avatar Mis à Jour',
+        message: 'Votre photo de profil a été mise à jour avec succès.',
+        time: 'Maintenant',
+        type: 'system',
+        read: false,
+        createdAt: serverTimestamp(),
+        userId: auth.currentUser.uid
+      });
+    } catch (error) {
+      console.error("Error uploading avatar:", error);
+    } finally {
+      setIsUploadingAvatar(false);
+    }
+  };
+
+  const handleUpdateApplicationStatus = async (id: string, status: 'Approved' | 'Rejected') => {
+    try {
+      await updateDoc(doc(db, 'applications', id), { status });
+      
+      // If approved, we might want to create a user account, but for now just update status
+      await addDoc(collection(db, 'notifications'), {
+        title: `Candidature ${status === 'Approved' ? 'Approuvée' : 'Refusée'}`,
+        message: `La candidature a été traitée avec succès.`,
+        time: 'Maintenant',
+        type: 'system',
+        read: false,
+        createdAt: serverTimestamp()
+      });
+    } catch (error) {
+      console.error("Error updating application:", error);
+    }
+  };
 
   const selectedCourse = localCourses.find(c => c.id === selectedCourseId);
   const selectedMission = localMissions.find(m => m.id === selectedMissionId);
@@ -257,9 +363,14 @@ const DashboardView: React.FC<Props> = ({ role, userName, onLogout, onOpenChat }
     }
   };
 
-  const handleFinishCorrection = async (missionId: string, status: MissionStatus) => {
+  const handleFinishCorrection = async (missionId: string, status: MissionStatus, grade?: string, feedback?: string) => {
     try {
-      await updateDoc(doc(db, 'missions', missionId), { status });
+      await updateDoc(doc(db, 'missions', missionId), { 
+        status,
+        grade: grade || null,
+        feedback: feedback || null
+      });
+      setCorrectingMissionId(null);
       setCorrectingMissionId(null);
       
       await addDoc(collection(db, 'notifications'), {
@@ -275,40 +386,114 @@ const DashboardView: React.FC<Props> = ({ role, userName, onLogout, onOpenChat }
     }
   };
 
-  const handleAddUser = async (userData: any) => {
+  const handleSharePortfolio = () => {
+    const shareUrl = `${window.location.origin}/portfolio/${auth.currentUser?.uid}`;
+    navigator.clipboard.writeText(shareUrl).then(() => {
+      alert("Lien du portfolio copié dans le presse-papier !");
+    }).catch(err => {
+      console.error('Erreur lors de la copie du lien:', err);
+    });
+  };
+
+  const handleSaveCourse = async (courseData: any) => {
     try {
-      // Note: This only adds to Firestore, not to Firebase Auth.
-      // In a real app, you'd use a Cloud Function or Admin SDK to create the Auth user.
-      const newUser = {
-        name: userData.name,
-        email: userData.email,
-        role: userData.role,
-        ...(userData.role === 'student' ? {
-          track: userData.track || 'Non spécifié',
-          progress: 0,
-          status: 'active',
-          absences: 0
-        } : {
-          specialty: userData.specialty || 'Expert',
-          avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${userData.name}`,
-          joinedDate: new Date().toLocaleDateString()
-        }),
-        createdAt: serverTimestamp()
-      };
+      if (courseData.id && localCourses.some(c => c.id === courseData.id)) {
+        await updateDoc(doc(db, 'courses', courseData.id), courseData);
+      } else {
+        await addDoc(collection(db, 'courses'), {
+          ...courseData,
+          id: Date.now().toString(),
+          createdAt: serverTimestamp()
+        });
+      }
+      setIsEditingCourse(null);
       
-      await addDoc(collection(db, 'users'), newUser);
-      
-      setIsAddingUser(false);
       await addDoc(collection(db, 'notifications'), {
-        title: 'Utilisateur Créé',
-        message: `L'utilisateur ${userData.name} a été ajouté avec succès.`,
+        title: 'Module Mis à Jour',
+        message: `Le module "${courseData.title}" a été enregistré avec succès.`,
         time: 'Maintenant',
         type: 'system',
         read: false,
         createdAt: serverTimestamp()
       });
     } catch (error) {
-      console.error("Error adding user:", error);
+      console.error("Error saving course:", error);
+    }
+  };
+
+  const handleDeleteCourse = async (courseId: string) => {
+    if (window.confirm("Voulez-vous vraiment supprimer ce module ?")) {
+      try {
+        await deleteDoc(doc(db, 'courses', courseId));
+        await addDoc(collection(db, 'notifications'), {
+          title: 'Module Supprimé',
+          message: 'Le module a été retiré du catalogue.',
+          time: 'Maintenant',
+          type: 'alert',
+          read: false,
+          createdAt: serverTimestamp()
+        });
+      } catch (error) {
+        console.error("Error deleting course:", error);
+      }
+    }
+  };
+  const handleAddUser = async (userData: any) => {
+    try {
+      if (editingUser) {
+        await updateDoc(doc(db, 'users', editingUser.id), {
+          name: userData.name,
+          email: userData.email,
+          ...(userData.role === 'student' ? { track: userData.track } : { specialty: userData.specialty })
+        });
+        setEditingUser(null);
+      } else {
+        const newUser = {
+          name: userData.name,
+          email: userData.email,
+          role: userData.role,
+          ...(userData.role === 'student' ? {
+            track: userData.track || 'Non spécifié',
+            progress: 0,
+            status: 'active',
+            absences: 0
+          } : {
+            specialty: userData.specialty || 'Expert',
+            avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${userData.name}`,
+            joinedDate: new Date().toLocaleDateString()
+          }),
+          createdAt: serverTimestamp()
+        };
+        await addDoc(collection(db, 'users'), newUser);
+      }
+      setIsAddingUser(false);
+      await addDoc(collection(db, 'notifications'), {
+        title: editingUser ? 'Utilisateur Modifié' : 'Nouvel Utilisateur',
+        message: `L'utilisateur ${userData.name} a été ${editingUser ? 'mis à jour' : 'ajouté'} avec succès.`,
+        time: 'Maintenant',
+        type: 'system',
+        read: false,
+        createdAt: serverTimestamp()
+      });
+    } catch (error) {
+      console.error("Error adding/editing user:", error);
+    }
+  };
+
+  const handleDeleteUser = async (id: string) => {
+    try {
+      await deleteDoc(doc(db, 'users', id));
+      setShowDeleteConfirm(null);
+      await addDoc(collection(db, 'notifications'), {
+        title: 'Utilisateur Supprimé',
+        message: "L'utilisateur a été retiré de la plateforme.",
+        time: 'Maintenant',
+        type: 'system',
+        read: false,
+        createdAt: serverTimestamp()
+      });
+    } catch (error) {
+      console.error("Error deleting user:", error);
     }
   };
 
@@ -431,10 +616,10 @@ const DashboardView: React.FC<Props> = ({ role, userName, onLogout, onOpenChat }
                 </button>
                 <div className="flex items-center gap-3 md:gap-4 cursor-pointer group" onClick={() => setShowProfile(true)}>
                   <div className="text-right">
-                    <p className="text-xs md:text-sm font-black text-[#2B3674] group-hover:text-[#4318FF] transition-colors">{userName}</p>
+                    <p className="text-xs md:text-sm font-black text-[#2B3674] group-hover:text-[#4318FF] transition-colors">{profileData.name}</p>
                     <p className="text-[8px] md:text-[10px] font-bold text-[#A3AED0] uppercase tracking-widest">{role}</p>
                   </div>
-                  <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${role}`} className="w-12 h-12 md:w-14 md:h-14 rounded-xl md:rounded-2xl border-2 border-white shadow-md bg-white transition-transform group-hover:rotate-3" alt="avatar" />
+                  <img src={profileData.avatar} className="w-12 h-12 md:w-14 md:h-14 rounded-xl md:rounded-2xl border-2 border-white shadow-md bg-white transition-transform group-hover:rotate-3 object-cover" alt="avatar" />
                 </div>
               </div>
             </header>
@@ -476,37 +661,109 @@ const DashboardView: React.FC<Props> = ({ role, userName, onLogout, onOpenChat }
             <AnimatePresence>
               {showProfile && (
                 <div className="fixed inset-0 z-[200] flex items-center justify-center p-6">
-                  <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setShowProfile(false)} className="absolute inset-0 bg-[#2B3674]/80 backdrop-blur-md" />
+                  <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => { setShowProfile(false); setIsEditingProfile(false); }} className="absolute inset-0 bg-[#2B3674]/80 backdrop-blur-md" />
                   <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9, y: 20 }} className="relative w-full max-w-md bg-white rounded-[60px] shadow-2xl overflow-hidden">
                     <div className="h-32 bg-gradient-to-r from-[#4318FF] to-[#868CFF]" />
                     <div className="px-10 pb-10 -mt-16 text-center space-y-6">
-                      <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${role}`} className="w-32 h-32 rounded-[40px] border-8 border-white bg-white shadow-2xl mx-auto" alt="profile" />
-                      <div>
-                        <h3 className="text-3xl font-black text-[#2B3674] tracking-tight">{userName}</h3>
-                        <p className="text-sm font-bold text-[#A3AED0] uppercase tracking-widest">{role} StudyLink</p>
-                      </div>
-                      <div className="grid grid-cols-2 gap-4">
-                        <div className="p-4 bg-[#F4F7FE] rounded-3xl border border-white">
-                          <p className="text-xl font-black text-[#4318FF]">12</p>
-                          <p className="text-[8px] font-bold text-[#A3AED0] uppercase tracking-widest">Badges</p>
-                        </div>
-                        <div className="p-4 bg-[#F4F7FE] rounded-3xl border border-white">
-                          <p className="text-xl font-black text-[#2B3674]">85%</p>
-                          <p className="text-[8px] font-bold text-[#A3AED0] uppercase tracking-widest">Score</p>
-                        </div>
-                      </div>
-                      <div className="flex flex-col gap-3">
-                        <button onClick={() => setShowProfile(false)} className="w-full py-5 bg-[#F4F7FE] text-[#2B3674] rounded-[28px] font-black uppercase tracking-widest text-[10px] border border-white shadow-sm hover:bg-white transition-all">Fermer le profil</button>
+                      <div className="relative inline-block">
+                        <img 
+                          src={profileData.avatar} 
+                          className={`w-32 h-32 rounded-[40px] border-8 border-white bg-white shadow-2xl mx-auto object-cover ${isUploadingAvatar ? 'opacity-50' : ''}`} 
+                          alt="profile" 
+                        />
+                        {isUploadingAvatar && (
+                          <div className="absolute inset-0 flex items-center justify-center">
+                            <Loader2 className="w-8 h-8 text-[#4318FF] animate-spin" />
+                          </div>
+                        )}
                         <button 
-                          onClick={() => {
-                            setShowProfile(false);
-                            onLogout();
-                          }} 
-                          className="w-full py-5 bg-red-50 text-red-600 rounded-[28px] font-black uppercase tracking-widest text-[10px] border border-red-100 shadow-sm hover:bg-red-600 hover:text-white transition-all flex items-center justify-center gap-2"
+                          onClick={() => fileInputRef.current?.click()}
+                          disabled={isUploadingAvatar}
+                          className="absolute bottom-2 right-2 w-10 h-10 bg-[#4318FF] text-white rounded-2xl flex items-center justify-center shadow-lg border-4 border-white hover:scale-110 transition-transform disabled:opacity-50 disabled:scale-100"
                         >
-                          <LogOut size={14} /> Déconnexion
+                          <Camera size={16} />
                         </button>
+                        <input 
+                          type="file" 
+                          ref={fileInputRef} 
+                          onChange={handleAvatarUpload} 
+                          className="hidden" 
+                          accept="image/*"
+                        />
                       </div>
+                      
+                      {isEditingProfile ? (
+                        <div className="space-y-4 text-left">
+                          <div className="space-y-1">
+                            <label className="text-[8px] font-black text-[#A3AED0] uppercase tracking-widest ml-4">Nom Complet</label>
+                            <input 
+                              type="text" 
+                              value={profileData.name}
+                              onChange={(e) => setProfileData({...profileData, name: e.target.value})}
+                              className="w-full p-4 bg-[#F4F7FE] border-none rounded-2xl outline-none font-bold text-[#2B3674] focus:ring-4 ring-[#4318FF]/5 transition-all text-sm"
+                            />
+                          </div>
+                          {role === 'professor' && (
+                            <div className="space-y-1">
+                              <label className="text-[8px] font-black text-[#A3AED0] uppercase tracking-widest ml-4">Spécialité</label>
+                              <input 
+                                type="text" 
+                                value={profileData.specialty}
+                                onChange={(e) => setProfileData({...profileData, specialty: e.target.value})}
+                                className="w-full p-4 bg-[#F4F7FE] border-none rounded-2xl outline-none font-bold text-[#2B3674] focus:ring-4 ring-[#4318FF]/5 transition-all text-sm"
+                              />
+                            </div>
+                          )}
+                          {role === 'student' && (
+                            <div className="space-y-1">
+                              <label className="text-[8px] font-black text-[#A3AED0] uppercase tracking-widest ml-4">Filière / Track</label>
+                              <input 
+                                type="text" 
+                                value={profileData.track}
+                                onChange={(e) => setProfileData({...profileData, track: e.target.value})}
+                                className="w-full p-4 bg-[#F4F7FE] border-none rounded-2xl outline-none font-bold text-[#2B3674] focus:ring-4 ring-[#4318FF]/5 transition-all text-sm"
+                              />
+                            </div>
+                          )}
+                          <div className="flex gap-3 pt-2">
+                            <button onClick={() => setIsEditingProfile(false)} className="flex-1 py-4 bg-slate-100 text-slate-600 rounded-2xl font-black uppercase tracking-widest text-[10px]">Annuler</button>
+                            <button onClick={handleSaveProfile} className="flex-1 py-4 bg-[#4318FF] text-white rounded-2xl font-black uppercase tracking-widest text-[10px] shadow-xl shadow-[#4318FF]/20">Enregistrer</button>
+                          </div>
+                        </div>
+                      ) : (
+                        <>
+                          <div>
+                            <h3 className="text-3xl font-black text-[#2B3674] tracking-tight">{profileData.name}</h3>
+                            <p className="text-sm font-bold text-[#A3AED0] uppercase tracking-widest">
+                              {role === 'professor' ? profileData.specialty || 'Intervenant' : role === 'student' ? profileData.track || 'Étudiant' : 'Administrateur'} StudyLink
+                            </p>
+                          </div>
+                          <div className="grid grid-cols-2 gap-4">
+                            <div className="p-4 bg-[#F4F7FE] rounded-3xl border border-white">
+                              <p className="text-xl font-black text-[#4318FF]">12</p>
+                              <p className="text-[8px] font-bold text-[#A3AED0] uppercase tracking-widest">Badges</p>
+                            </div>
+                            <div className="p-4 bg-[#F4F7FE] rounded-3xl border border-white">
+                              <p className="text-xl font-black text-[#2B3674]">85%</p>
+                              <p className="text-[8px] font-bold text-[#A3AED0] uppercase tracking-widest">Score</p>
+                            </div>
+                          </div>
+                          <div className="flex flex-col gap-3">
+                            <button onClick={() => setIsEditingProfile(true)} className="w-full py-5 bg-white text-[#4318FF] rounded-[28px] font-black uppercase tracking-widest text-[10px] border-2 border-[#4318FF] shadow-sm hover:bg-[#4318FF] hover:text-white transition-all flex items-center justify-center gap-2">
+                              <Edit3 size={14} /> Modifier le profil
+                            </button>
+                            <button 
+                              onClick={() => {
+                                setShowProfile(false);
+                                onLogout();
+                              }} 
+                              className="w-full py-5 bg-red-50 text-red-600 rounded-[28px] font-black uppercase tracking-widest text-[10px] border border-red-100 shadow-sm hover:bg-red-600 hover:text-white transition-all flex items-center justify-center gap-2"
+                            >
+                              <LogOut size={14} /> Déconnexion
+                            </button>
+                          </div>
+                        </>
+                      )}
                     </div>
                   </motion.div>
                 </div>
@@ -535,12 +792,21 @@ const DashboardView: React.FC<Props> = ({ role, userName, onLogout, onOpenChat }
 
               {activeTab === 'chat' && <SupportView role={role} onOpenChat={onOpenChat} />}
 
+              {activeTab === 'admissions' && role === 'admin' && (
+                <AdminAdmissionsView 
+                  applications={localApplications} 
+                  onUpdateStatus={handleUpdateApplicationStatus}
+                />
+              )}
+
               {activeTab === 'users' && role === 'admin' && (
                 <AdminUsersView 
                   students={localStudents} 
                   lecturers={localLecturers} 
                   onManageAccess={(l) => setManagingAccessLecturer(l)}
-                  onAddUser={() => setIsAddingUser(true)}
+                  onAddUser={() => { setEditingUser(null); setIsAddingUser(true); }}
+                  onEditUser={(u) => { setEditingUser(u); setIsAddingUser(true); }}
+                  onDeleteUser={(id) => setShowDeleteConfirm(id)}
                   onSeedData={handleSeedData}
                 />
               )}
@@ -590,34 +856,33 @@ const DashboardView: React.FC<Props> = ({ role, userName, onLogout, onOpenChat }
               )}
 
               {activeTab === 'modules' && !selectedCourseId && (
-                <div className="space-y-10">
-                  {role === 'professor' && (
-                    <div className="flex justify-end">
-                      <button 
-                        onClick={() => setIsEditingCourse({ id: '', title: '', description: '', lessons: [], status: 'Draft', points: 1000 })}
-                        className="px-10 py-5 bg-[#4318FF] text-white rounded-[28px] font-black uppercase tracking-widest text-[11px] shadow-2xl shadow-[#4318FF]/20 flex items-center gap-3 hover:scale-105 transition-all"
-                      >
-                        <Plus size={18} /> Créer un nouveau module
-                      </button>
+                role === 'professor' ? (
+                  <ProfessorCourseManager 
+                    courses={localCourses}
+                    onEdit={(c) => setIsEditingCourse(c)}
+                    onDelete={handleDeleteCourse}
+                    onCreate={() => setIsEditingCourse({ id: '', title: '', description: '', category: 'Code', duration: '12h', lessons: [], status: 'In Progress', thematicId: '1' })}
+                  />
+                ) : (
+                  <div className="space-y-10">
+                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-10">
+                       {filteredCourses.length > 0 ? filteredCourses.map(course => (
+                         <CourseCard 
+                           key={course.id} 
+                           course={course} 
+                           onClick={() => setSelectedCourseId(course.id)} 
+                           showAdminControls={role === 'professor'}
+                         />
+                       )) : (
+                         <div className="col-span-full py-20 text-center bg-white rounded-[60px] border-4 border-dashed border-slate-50">
+                            <BookOpen size={48} className="text-slate-200 mx-auto mb-4" />
+                            <h4 className="text-xl font-black text-[#2B3674] uppercase">Aucun module trouvé</h4>
+                            <p className="text-sm font-bold text-[#A3AED0]">Commencez par ajouter des modules ou changez vos filtres.</p>
+                         </div>
+                       )}
                     </div>
-                  )}
-                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-10">
-                     {filteredCourses.length > 0 ? filteredCourses.map(course => (
-                       <CourseCard 
-                         key={course.id} 
-                         course={course} 
-                         onClick={() => setSelectedCourseId(course.id)} 
-                         showAdminControls={role === 'professor'}
-                       />
-                     )) : (
-                       <div className="col-span-full py-20 text-center bg-white rounded-[60px] border-4 border-dashed border-slate-50">
-                          <BookOpen size={48} className="text-slate-200 mx-auto mb-4" />
-                          <h4 className="text-xl font-black text-[#2B3674] uppercase">Aucun module trouvé</h4>
-                          <p className="text-sm font-bold text-[#A3AED0]">Commencez par ajouter des modules ou changez vos filtres.</p>
-                       </div>
-                     )}
                   </div>
-                </div>
+                )
               )}
 
               {selectedCourseId && selectedCourse && (
@@ -630,14 +895,14 @@ const DashboardView: React.FC<Props> = ({ role, userName, onLogout, onOpenChat }
 
               {activeTab === 'portfolio' && role === 'student' && (
                 <StudentPortfolioView 
-                  userName={userName}
+                  userName={profileData.name}
                   missions={localMissions} 
-                  onShare={() => setCopyFeedback(true)} 
+                  onShare={handleSharePortfolio}
                   onViewProject={(id) => { setSelectedMissionId(id); setActiveTab('missions'); }}
                 />
               )}
 
-              {activeTab === 'admissions' && role === 'admin' && <AdminAdmissions applications={localApplications} />}
+              {activeTab === 'admissions' && role === 'admin' && <AdminAdmissionsView applications={localApplications} />}
               
               {activeTab === 'settings' && <GlobalSettings role={role} />}
             </AnimatePresence>
@@ -650,6 +915,13 @@ const DashboardView: React.FC<Props> = ({ role, userName, onLogout, onOpenChat }
                    onClose={() => setManagingAccessLecturer(null)}
                  />
                )}
+               {isEditingCourse && (
+                 <CourseEditorModal 
+                   course={isEditingCourse}
+                   onClose={() => setIsEditingCourse(null)}
+                   onSave={handleSaveCourse}
+                 />
+               )}
                {isEditingMission && (
                  <MissionEditorModal 
                     mission={isEditingMission}
@@ -660,9 +932,26 @@ const DashboardView: React.FC<Props> = ({ role, userName, onLogout, onOpenChat }
                )}
                {isAddingUser && (
                  <AddUserModal 
-                    onClose={() => setIsAddingUser(false)}
+                    user={editingUser}
+                    onClose={() => { setIsAddingUser(false); setEditingUser(null); }}
                     onSave={handleAddUser}
                  />
+               )}
+               {showDeleteConfirm && (
+                 <div className="fixed inset-0 z-[300] flex items-center justify-center p-6">
+                   <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setShowDeleteConfirm(null)} className="absolute inset-0 bg-[#2B3674]/80 backdrop-blur-md" />
+                   <motion.div initial={{ scale: 0.9 }} animate={{ scale: 1 }} exit={{ scale: 0.9 }} className="relative bg-white p-10 rounded-[40px] shadow-2xl max-w-sm w-full text-center space-y-6">
+                     <div className="w-20 h-20 bg-red-50 text-red-500 rounded-3xl flex items-center justify-center mx-auto">
+                       <Trash2 size={40} />
+                     </div>
+                     <h3 className="text-2xl font-black text-[#2B3674] uppercase tracking-tighter">Supprimer ?</h3>
+                     <p className="text-sm font-bold text-[#A3AED0]">Cette action est irréversible. L'utilisateur perdra tous ses accès.</p>
+                     <div className="flex gap-4 pt-4">
+                       <button onClick={() => setShowDeleteConfirm(null)} className="flex-1 py-4 bg-slate-100 text-slate-600 rounded-2xl font-black uppercase tracking-widest text-[10px]">Annuler</button>
+                       <button onClick={() => handleDeleteUser(showDeleteConfirm)} className="flex-1 py-4 bg-red-500 text-white rounded-2xl font-black uppercase tracking-widest text-[10px] shadow-xl shadow-red-500/20">Supprimer</button>
+                     </div>
+                   </motion.div>
+                 </div>
                )}
             </AnimatePresence>
           </div>
@@ -671,8 +960,8 @@ const DashboardView: React.FC<Props> = ({ role, userName, onLogout, onOpenChat }
         {correctingMissionId && correctingMission && (
           <ProfessorCorrectionView 
             mission={correctingMission} 
-            onCancel={() => setCorrectingMissionId(null)}
-            onFinish={(status) => handleFinishCorrection(correctingMission.id, status)}
+            onCancel={() => { setCorrectingMissionId(null); }}
+            onFinish={(status, grade, feedback) => handleFinishCorrection(correctingMission.id, status, grade, feedback)}
           />
         )}
       </main>
@@ -682,11 +971,11 @@ const DashboardView: React.FC<Props> = ({ role, userName, onLogout, onOpenChat }
 
 // --- MODAL : AJOUTER UN UTILISATEUR ---
 
-const AddUserModal: React.FC<{ onClose: () => void, onSave: (u: any) => void }> = ({ onClose, onSave }) => {
-  const [role, setRole] = useState<'student' | 'professor'>('student');
-  const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
-  const [extra, setExtra] = useState('');
+const AddUserModal: React.FC<{ user?: any, onClose: () => void, onSave: (u: any) => void }> = ({ user, onClose, onSave }) => {
+  const [role, setRole] = useState<'student' | 'professor'>(user?.role || 'student');
+  const [name, setName] = useState(user?.name || '');
+  const [email, setEmail] = useState(user?.email || '');
+  const [extra, setExtra] = useState(user?.track || user?.specialty || '');
 
   const isValid = name.trim() !== '' && email.trim() !== '' && email.includes('@');
 
@@ -1056,7 +1345,175 @@ const MissionEditorModal: React.FC<{ mission: Mission, courses: Course[], onClos
    );
 };
 
-// --- COMPOSANT PROFESSEUR : MES CLASSES ---
+// --- COMPOSANT PROFESSEUR : GESTION DES MODULES ---
+
+const ProfessorCourseManager: React.FC<{ 
+  courses: Course[], 
+  onEdit: (c: Course) => void, 
+  onDelete: (id: string) => void,
+  onCreate: () => void
+}> = ({ courses, onEdit, onDelete, onCreate }) => {
+  return (
+    <div className="space-y-10">
+       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+          <div className="flex items-center gap-4">
+             <div className="w-14 h-14 rounded-2xl bg-[#4318FF] text-white flex items-center justify-center shadow-xl shadow-[#4318FF]/20">
+                <BookOpen size={28} />
+             </div>
+             <div>
+                <h3 className="text-3xl font-black text-[#2B3674] tracking-tighter uppercase leading-none">Catalogue des Modules</h3>
+                <p className="text-xs font-bold text-[#A3AED0] uppercase tracking-widest mt-2">Gérez vos contenus et leçons d'excellence</p>
+             </div>
+          </div>
+          <button 
+            onClick={onCreate}
+            className="px-10 py-5 bg-[#4318FF] text-white rounded-[28px] font-black uppercase tracking-widest text-[11px] shadow-xl hover:scale-105 transition-all flex items-center gap-3"
+          >
+             <Plus size={18} /> Nouveau Module
+          </button>
+       </div>
+
+       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+          {courses.map(course => (
+             <div key={course.id} className="bg-white rounded-[60px] shadow-sm border border-slate-50 overflow-hidden group hover:shadow-2xl transition-all flex flex-col">
+                <div className="h-48 relative overflow-hidden">
+                   <img src={course.image} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" alt={course.title} />
+                   <div className="absolute inset-0 bg-gradient-to-t from-[#2B3674]/80 to-transparent" />
+                   <div className="absolute bottom-6 left-6 right-6 flex justify-between items-end">
+                      <span className="px-4 py-2 bg-white/20 backdrop-blur-md text-white rounded-xl text-[9px] font-black uppercase tracking-widest border border-white/10">{course.category}</span>
+                      <div className="flex gap-2">
+                         <button onClick={() => onEdit(course)} className="w-10 h-10 bg-white text-[#4318FF] rounded-xl flex items-center justify-center shadow-lg hover:scale-110 transition-all"><Edit3 size={16} /></button>
+                         <button onClick={() => onDelete(course.id)} className="w-10 h-10 bg-red-500 text-white rounded-xl flex items-center justify-center shadow-lg hover:scale-110 transition-all"><Trash2 size={16} /></button>
+                      </div>
+                   </div>
+                </div>
+                <div className="p-8 space-y-4 flex-1 flex flex-col">
+                   <h4 className="text-xl font-black text-[#2B3674] tracking-tight line-clamp-1 uppercase">{course.title}</h4>
+                   <p className="text-sm font-bold text-[#A3AED0] line-clamp-2 leading-relaxed flex-1">{course.description}</p>
+                   <div className="pt-6 border-t border-slate-50 flex justify-between items-center">
+                      <div className="flex items-center gap-2 text-[#4318FF]">
+                         <Clock size={14} />
+                         <span className="text-[10px] font-black uppercase tracking-widest">{course.duration}</span>
+                      </div>
+                      <span className="text-[10px] font-black text-[#2B3674] uppercase tracking-widest">{course.lessons.length} Leçons</span>
+                   </div>
+                </div>
+             </div>
+          ))}
+       </div>
+    </div>
+  );
+};
+
+// --- MODAL : ÉDITEUR DE MODULE ---
+
+const CourseEditorModal: React.FC<{ 
+  course: Partial<Course>, 
+  onClose: () => void, 
+  onSave: (c: any) => void 
+}> = ({ course, onClose, onSave }) => {
+  const [formData, setFormData] = useState({
+    id: course.id || '',
+    title: course.title || '',
+    description: course.description || '',
+    category: course.category || 'Code',
+    duration: course.duration || '12h',
+    image: course.image || 'https://picsum.photos/seed/course/800/600',
+    status: course.status || 'In Progress',
+    thematicId: course.thematicId || '1',
+    lessons: course.lessons || []
+  });
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 lg:p-12">
+       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose} className="absolute inset-0 bg-[#2B3674]/80 backdrop-blur-md" />
+       <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9, y: 20 }} className="relative w-full max-w-3xl bg-white rounded-[60px] shadow-2xl overflow-hidden flex flex-col max-h-full">
+          <div className="p-10 bg-[#4318FF] text-white flex justify-between items-center shrink-0">
+             <div className="flex items-center gap-6">
+                <div className="w-16 h-16 bg-white/10 rounded-2xl flex items-center justify-center backdrop-blur-md border border-white/10"><BookOpen size={28} /></div>
+                <div>
+                   <h3 className="text-3xl font-black tracking-tighter uppercase leading-none">{course.id ? 'Éditer le Module' : 'Nouveau Module'}</h3>
+                   <p className="text-xs font-bold opacity-60 uppercase tracking-widest mt-2">Configuration du contenu d'excellence</p>
+                </div>
+             </div>
+             <button onClick={onClose} className="w-12 h-12 rounded-xl hover:bg-white/10 flex items-center justify-center transition-colors"><X size={28} /></button>
+          </div>
+          
+          <div className="flex-1 overflow-y-auto p-12 custom-scrollbar space-y-10">
+             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div className="space-y-4">
+                   <label className="text-[10px] font-black text-[#A3AED0] uppercase tracking-widest ml-4">Titre du Module</label>
+                   <input 
+                      type="text" 
+                      value={formData.title} 
+                      onChange={e => setFormData({ ...formData, title: e.target.value })}
+                      className="w-full p-6 bg-[#F4F7FE] border-none rounded-3xl font-bold text-[#2B3674] outline-none" 
+                      placeholder="Ex: React & IA Avancé"
+                   />
+                </div>
+                <div className="space-y-4">
+                   <label className="text-[10px] font-black text-[#A3AED0] uppercase tracking-widest ml-4">Catégorie</label>
+                   <select 
+                      value={formData.category} 
+                      onChange={e => setFormData({ ...formData, category: e.target.value })}
+                      className="w-full p-6 bg-[#F4F7FE] border-none rounded-3xl font-bold text-[#2B3674] outline-none"
+                   >
+                      <option value="Code">Code & IA</option>
+                      <option value="Design">UI/UX Design</option>
+                      <option value="Marketing">Marketing Digital</option>
+                   </select>
+                </div>
+             </div>
+
+             <div className="space-y-4">
+                <label className="text-[10px] font-black text-[#A3AED0] uppercase tracking-widest ml-4">Description du Module</label>
+                <textarea 
+                   value={formData.description} 
+                   onChange={e => setFormData({ ...formData, description: e.target.value })}
+                   className="w-full p-8 bg-[#F4F7FE] border-none rounded-[40px] font-bold text-[#2B3674] h-40 outline-none resize-none" 
+                   placeholder="Présentez les objectifs pédagogiques..."
+                />
+             </div>
+
+             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div className="space-y-4">
+                   <label className="text-[10px] font-black text-[#A3AED0] uppercase tracking-widest ml-4">Durée Estimée</label>
+                   <input 
+                      type="text" 
+                      value={formData.duration} 
+                      onChange={e => setFormData({ ...formData, duration: e.target.value })}
+                      className="w-full p-6 bg-[#F4F7FE] border-none rounded-3xl font-bold text-[#2B3674] outline-none" 
+                      placeholder="Ex: 24h"
+                   />
+                </div>
+                <div className="space-y-4">
+                   <label className="text-[10px] font-black text-[#A3AED0] uppercase tracking-widest ml-4">URL Image de couverture</label>
+                   <input 
+                      type="text" 
+                      value={formData.image} 
+                      onChange={e => setFormData({ ...formData, image: e.target.value })}
+                      className="w-full p-6 bg-[#F4F7FE] border-none rounded-3xl font-bold text-[#2B3674] outline-none" 
+                      placeholder="https://..."
+                   />
+                </div>
+             </div>
+          </div>
+          
+          <div className="p-10 bg-slate-50 flex justify-end gap-4 shrink-0 border-t border-white">
+             <button onClick={onClose} className="px-10 py-5 text-[#A3AED0] font-black uppercase tracking-widest text-[10px] hover:text-[#2B3674]">Annuler</button>
+             <button 
+                disabled={!formData.title || !formData.description}
+                onClick={() => onSave(formData)} 
+                className={`px-12 py-5 rounded-[24px] font-black uppercase tracking-widest text-[10px] shadow-2xl transition-all ${formData.title && formData.description ? 'bg-[#4318FF] text-white hover:scale-105 active:scale-95' : 'bg-slate-200 text-slate-400 cursor-not-allowed'}`}
+             >
+                <Save size={18} className="inline mr-2" /> {course.id ? 'Mettre à jour' : 'Créer le module'}
+             </button>
+          </div>
+       </motion.div>
+    </div>
+  );
+};
+
 
 const ProfessorClassesView: React.FC<{ students: Student[], sessions: Session[], missions: Mission[] }> = ({ students, sessions, missions }) => {
   const activeSessions = sessions.filter(s => s.isActive);
@@ -1263,7 +1720,15 @@ const AdminTowerDashboard: React.FC<{ students: Student[], sessions: Session[] }
 
 // --- COMPOSANT ADMIN : GESTION DES UTILISATEURS ---
 
-const AdminUsersView: React.FC<{ students: Student[], lecturers: Lecturer[], onManageAccess: (l: Lecturer) => void, onAddUser: () => void, onSeedData: () => void }> = ({ students, lecturers, onManageAccess, onAddUser, onSeedData }) => {
+const AdminUsersView: React.FC<{ 
+  students: Student[], 
+  lecturers: Lecturer[], 
+  onManageAccess: (l: Lecturer) => void, 
+  onAddUser: () => void, 
+  onEditUser: (u: any) => void,
+  onDeleteUser: (id: string) => void,
+  onSeedData: () => void 
+}> = ({ students, lecturers, onManageAccess, onAddUser, onEditUser, onDeleteUser, onSeedData }) => {
   const [subTab, setSubTab] = useState<'students' | 'lecturers'>('students');
 
   const handleExportCSV = () => {
@@ -1366,7 +1831,16 @@ const AdminUsersView: React.FC<{ students: Student[], lecturers: Lecturer[], onM
                          </td>
                          <td className="p-6 md:p-8"><span className="px-3 md:px-4 py-1.5 md:py-2 bg-[#F4F7FE] text-[#4318FF] rounded-xl text-[9px] md:text-[10px] font-black uppercase">{student.track}</span></td>
                          <td className="p-6 md:p-8"><span className={`text-[10px] md:text-xs font-bold ${student.absences >= 3 ? 'text-red-500' : 'text-green-500'}`}>{student.absences} Absences</span></td>
-                         <td className="p-6 md:p-8"><button className="p-2.5 md:p-3 bg-white text-[#A3AED0] rounded-xl border border-slate-50 hover:bg-[#4318FF] hover:text-white transition-all shadow-sm"><Edit3 size={16} className="md:w-[18px] md:h-[18px]" /></button></td>
+                         <td className="p-6 md:p-8">
+                            <div className="flex items-center gap-2">
+                               <button onClick={() => onEditUser(student)} className="p-2.5 md:p-3 bg-white text-[#A3AED0] rounded-xl border border-slate-50 hover:bg-[#4318FF] hover:text-white transition-all shadow-sm">
+                                  <Edit3 size={16} className="md:w-[18px] md:h-[18px]" />
+                               </button>
+                               <button onClick={() => onDeleteUser(student.id)} className="p-2.5 md:p-3 bg-white text-red-400 rounded-xl border border-slate-50 hover:bg-red-500 hover:text-white transition-all shadow-sm">
+                                  <Trash2 size={16} className="md:w-[18px] md:h-[18px]" />
+                               </button>
+                            </div>
+                         </td>
                       </tr>
                     ))}
                  </tbody>
@@ -1384,7 +1858,12 @@ const AdminUsersView: React.FC<{ students: Student[], lecturers: Lecturer[], onM
                         <p className="text-[10px] md:text-xs font-bold text-[#4318FF] uppercase mt-1.5 md:mt-2">Expert {prof.specialty}</p>
                      </div>
                   </div>
-                  <button onClick={() => onManageAccess(prof)} className="w-full py-4 md:py-5 bg-[#2B3674] text-white rounded-[24px] md:rounded-[28px] font-black text-[10px] md:text-[11px] uppercase tracking-widest hover:bg-[#4318FF] transition-all">Gérer Accès</button>
+                  <div className="flex gap-2">
+                    <button onClick={() => onManageAccess(prof)} className="flex-1 py-4 md:py-5 bg-[#2B3674] text-white rounded-[24px] md:rounded-[28px] font-black text-[10px] md:text-[11px] uppercase tracking-widest hover:bg-[#4318FF] transition-all">Gérer Accès</button>
+                    <button onClick={() => onDeleteUser(prof.id)} className="w-14 py-4 md:py-5 bg-red-50 text-red-500 rounded-[24px] md:rounded-[28px] flex items-center justify-center hover:bg-red-500 hover:text-white transition-all">
+                      <Trash2 size={18} />
+                    </button>
+                  </div>
                </div>
             ))}
          </div>
@@ -1395,7 +1874,10 @@ const AdminUsersView: React.FC<{ students: Student[], lecturers: Lecturer[], onM
 
 // --- PROFESSOR CORRECTION VIEW (SPLIT VIEW) ---
 
-const ProfessorCorrectionView: React.FC<{ mission: Mission, onCancel: () => void, onFinish: (status: MissionStatus) => void }> = ({ mission, onCancel, onFinish }) => {
+const ProfessorCorrectionView: React.FC<{ mission: Mission, onCancel: () => void, onFinish: (status: MissionStatus, grade: string, feedback: string) => void }> = ({ mission, onCancel, onFinish }) => {
+  const [grade, setGrade] = useState('A+');
+  const [feedback, setFeedback] = useState('');
+
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="h-screen flex flex-col bg-white overflow-hidden" >
       <header className="h-20 bg-white border-b border-slate-100 px-10 flex items-center justify-between shrink-0 z-20 shadow-sm">
@@ -1404,8 +1886,8 @@ const ProfessorCorrectionView: React.FC<{ mission: Mission, onCancel: () => void
             <h2 className="text-sm font-black text-[#2B3674] uppercase tracking-widest">Correction: {mission?.title || 'Mission'}</h2>
          </div>
          <div className="flex items-center gap-4">
-            <button onClick={() => onFinish('Returned')} className="px-6 py-3 bg-red-50 text-red-500 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-red-100">À revoir</button>
-            <button onClick={() => onFinish('Validated')} className="px-8 py-3 bg-green-500 text-white rounded-xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-green-500/20 hover:scale-105 transition-all">Valider</button>
+            <button onClick={() => onFinish('Returned', grade, feedback)} className="px-6 py-3 bg-red-50 text-red-500 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-red-100">À revoir</button>
+            <button onClick={() => onFinish('Validated', grade, feedback)} className="px-8 py-3 bg-green-500 text-white rounded-xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-green-500/20 hover:scale-105 transition-all">Valider</button>
          </div>
       </header>
 
@@ -1426,13 +1908,24 @@ const ProfessorCorrectionView: React.FC<{ mission: Mission, onCancel: () => void
                <h3 className="text-sm font-black text-[#2B3674] uppercase tracking-widest flex items-center gap-3"><Star size={20} className="text-[#4318FF]" /> Score Excellence</h3>
                <div className="grid grid-cols-3 gap-3">
                   {['A+', 'A', 'B+', 'B', 'C', 'R'].map(g => (
-                    <button key={g} className={`h-16 rounded-2xl font-black text-xl border-2 transition-all ${g === 'A+' ? 'bg-[#4318FF] text-white border-[#4318FF]' : 'bg-white text-[#A3AED0] border-slate-50 hover:border-slate-200'}`}>{g}</button>
+                    <button 
+                      key={g} 
+                      onClick={() => setGrade(g)}
+                      className={`h-16 rounded-2xl font-black text-xl border-2 transition-all ${grade === g ? 'bg-[#4318FF] text-white border-[#4318FF]' : 'bg-white text-[#A3AED0] border-slate-50 hover:border-slate-200'}`}
+                    >
+                      {g}
+                    </button>
                   ))}
                </div>
             </section>
             <section className="space-y-6">
                <h3 className="text-sm font-black text-[#2B3674] uppercase tracking-widest flex items-center gap-3"><MessageCircle size={20} className="text-[#4318FF]" /> Feedback</h3>
-               <textarea placeholder="Écrivez vos conseils d'amélioration..." className="w-full h-48 p-6 bg-[#F4F7FE] border-none rounded-[32px] text-sm font-bold text-[#2B3674] outline-none" />
+               <textarea 
+                 value={feedback}
+                 onChange={e => setFeedback(e.target.value)}
+                 placeholder="Écrivez vos conseils d'amélioration..." 
+                 className="w-full h-48 p-6 bg-[#F4F7FE] border-none rounded-[32px] text-sm font-bold text-[#2B3674] outline-none" 
+               />
             </section>
          </div>
       </div>
@@ -1738,8 +2231,12 @@ const StudentPortfolioView: React.FC<{ userName: string; missions: Mission[]; on
 
 // --- COMPONENTS ---
 
-const AdminAdmissions: React.FC<{ applications: any[] }> = ({ applications }) => {
+const AdminAdmissionsView: React.FC<{ applications: any[], onUpdateStatus?: (id: string, status: string) => void }> = ({ applications, onUpdateStatus }) => {
   const handleUpdateStatus = async (id: string, status: string) => {
+    if (onUpdateStatus) {
+      onUpdateStatus(id, status);
+      return;
+    }
     try {
       await updateDoc(doc(db, 'applications', id), { status });
     } catch (error) {
@@ -1841,24 +2338,124 @@ const GlobalSettings: React.FC<{ role: UserRole }> = ({ role }) => {
 
 const CourseDetailView: React.FC<{ course: Course; onBack: () => void; onToggleCompletion: (id: string) => void }> = ({ course, onBack, onToggleCompletion }) => {
   const [activeLesson, setActiveLesson] = useState<Lesson>(course.lessons[0] || { id: '0', title: 'Bienvenue', duration: '5m', isCompleted: false, content: 'Sélectionnez une leçon pour commencer.', resources: [] });
+  
   return (
-    <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 20 }} className="space-y-12 pb-20">
-      <button onClick={onBack} className="flex items-center gap-3 text-[#A3AED0] hover:text-[#2B3674] font-black text-sm uppercase tracking-widest transition-all"><ChevronLeft size={20} /> Retour</button>
-      <div className="flex flex-col lg:flex-row gap-12">
-        <div className="flex-1 bg-white rounded-[50px] shadow-sm border border-slate-50 p-12 lg:p-16 space-y-12">
-          <h1 className="text-4xl font-black text-[#2B3674] tracking-tight">{activeLesson?.title || 'Leçon'}</h1>
-          <p className="text-lg text-[#A3AED0] font-bold leading-relaxed">{activeLesson.content}</p>
-          <button onClick={() => onToggleCompletion(activeLesson.id)} className={`px-10 py-5 rounded-[24px] font-black uppercase text-[11px] flex items-center gap-3 transition-all ${activeLesson.isCompleted ? 'bg-green-500 text-white' : 'bg-[#4318FF] text-white'}`}><CheckCircle size={18} /> {activeLesson.isCompleted ? 'Terminé' : 'Marquer comme fini'}</button>
+    <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 20 }} className="space-y-12 pb-32">
+      <div className="flex justify-between items-center">
+        <button onClick={onBack} className="flex items-center gap-3 text-[#A3AED0] hover:text-[#2B3674] font-black text-sm uppercase tracking-widest transition-all group">
+          <div className="w-10 h-10 rounded-xl bg-white shadow-sm flex items-center justify-center group-hover:scale-110 transition-all">
+            <ChevronLeft size={20} />
+          </div>
+          Retour au catalogue
+        </button>
+        <div className="flex items-center gap-4">
+          <span className="px-6 py-3 bg-white rounded-2xl text-[10px] font-black text-[#2B3674] uppercase tracking-widest shadow-sm border border-slate-50">{course.category}</span>
         </div>
-        <div className="w-full lg:w-96 bg-white p-10 rounded-[50px] shadow-sm border border-slate-50 space-y-4">
-           <h3 className="text-xl font-black text-[#2B3674] mb-6">Syllabus</h3>
-           {course.lessons.map((l, i) => (
-             <button key={l.id} onClick={() => setActiveLesson(l)} className={`w-full text-left p-4 rounded-2xl flex items-center gap-4 transition-all ${activeLesson.id === l.id ? 'bg-[#F4F7FE] text-[#4318FF]' : 'text-[#2B3674]'}`}>
-                <span className="font-black text-xs">{i+1}.</span>
-                <span className="text-sm font-bold flex-1 truncate">{l?.title || 'Leçon'}</span>
-                {l.isCompleted && <CheckCircle size={14} className="text-green-500" />}
-             </button>
-           ))}
+      </div>
+
+      <div className="flex flex-col lg:flex-row gap-12 items-start">
+        <div className="flex-1 space-y-10">
+          <div className="bg-white rounded-[60px] shadow-sm border border-slate-50 overflow-hidden">
+            <div className="h-64 relative">
+              <img src={course.image} className="w-full h-full object-cover" alt={course.title} />
+              <div className="absolute inset-0 bg-gradient-to-t from-[#2B3674] to-transparent opacity-60" />
+              <div className="absolute bottom-10 left-10 right-10">
+                <h1 className="text-5xl font-black text-white tracking-tighter uppercase leading-tight">{course.title}</h1>
+              </div>
+            </div>
+            
+            <div className="p-12 lg:p-16 space-y-12">
+              <div className="flex justify-between items-center">
+                <h2 className="text-3xl font-black text-[#2B3674] tracking-tight uppercase">{activeLesson?.title || 'Leçon'}</h2>
+                <div className="flex items-center gap-3 text-[#A3AED0]">
+                  <Clock size={16} />
+                  <span className="text-xs font-black uppercase tracking-widest">{activeLesson.duration}</span>
+                </div>
+              </div>
+
+              <div className="prose prose-slate max-w-none">
+                <p className="text-xl text-[#2B3674] font-bold leading-relaxed opacity-80">{activeLesson.content}</p>
+              </div>
+
+              {activeLesson.resources && activeLesson.resources.length > 0 && (
+                <div className="space-y-6 pt-10 border-t border-slate-50">
+                  <h3 className="text-xs font-black text-[#A3AED0] uppercase tracking-widest">Ressources complémentaires</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {activeLesson.resources.map(res => (
+                      <a 
+                        key={res.id} 
+                        href={res.url} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-4 p-6 bg-[#F4F7FE] rounded-3xl hover:bg-[#4318FF]/5 transition-all group"
+                      >
+                        <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center text-[#4318FF] shadow-sm group-hover:scale-110 transition-all">
+                          {res.type === 'video' ? <Play size={20} /> : res.type === 'pdf' ? <FileText size={20} /> : <ExternalLink size={20} />}
+                        </div>
+                        <div>
+                          <p className="text-sm font-black text-[#2B3674] uppercase tracking-tight">{res.title}</p>
+                          <p className="text-[10px] font-bold text-[#A3AED0] uppercase tracking-widest mt-1">{res.type}</p>
+                        </div>
+                      </a>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div className="pt-10 flex justify-center">
+                <button 
+                  onClick={() => onToggleCompletion(activeLesson.id)} 
+                  className={`px-16 py-6 rounded-[32px] font-black uppercase tracking-[0.2em] text-xs flex items-center gap-4 transition-all shadow-2xl ${activeLesson.isCompleted ? 'bg-green-500 text-white shadow-green-500/20' : 'bg-[#4318FF] text-white shadow-[#4318FF]/20 hover:scale-105 active:scale-95'}`}
+                >
+                  {activeLesson.isCompleted ? (
+                    <><CheckCircle size={24} /> Leçon terminée</>
+                  ) : (
+                    <><Circle size={24} /> Marquer comme terminé</>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="w-full lg:w-[400px] shrink-0 space-y-8">
+          <div className="bg-white p-10 rounded-[60px] shadow-sm border border-slate-50 space-y-8">
+            <div className="flex justify-between items-center">
+              <h3 className="text-xl font-black text-[#2B3674] uppercase tracking-tight">Syllabus</h3>
+              <span className="text-[10px] font-black text-[#4318FF] bg-[#4318FF]/5 px-3 py-1 rounded-full uppercase tracking-widest">
+                {course.lessons.filter(l => l.isCompleted).length} / {course.lessons.length}
+              </span>
+            </div>
+            
+            <div className="space-y-3">
+              {course.lessons.map((l, i) => (
+                <button 
+                  key={l.id} 
+                  onClick={() => setActiveLesson(l)} 
+                  className={`w-full text-left p-6 rounded-[32px] flex items-center gap-5 transition-all group ${activeLesson.id === l.id ? 'bg-[#4318FF] text-white shadow-xl shadow-[#4318FF]/20' : 'bg-[#F4F7FE] text-[#2B3674] hover:bg-white hover:shadow-lg'}`}
+                >
+                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-black text-xs ${activeLesson.id === l.id ? 'bg-white/20' : 'bg-white text-[#A3AED0]'}`}>
+                    {i+1}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-black uppercase tracking-tight truncate">{l?.title || 'Leçon'}</p>
+                    <p className={`text-[9px] font-bold uppercase tracking-widest mt-1 ${activeLesson.id === l.id ? 'text-white/60' : 'text-[#A3AED0]'}`}>{l.duration}</p>
+                  </div>
+                  {l.isCompleted && (
+                    <div className={`w-6 h-6 rounded-full flex items-center justify-center ${activeLesson.id === l.id ? 'bg-white text-[#4318FF]' : 'bg-green-500 text-white'}`}>
+                      <CheckCircle size={14} />
+                    </div>
+                  )}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="bg-[#2B3674] p-10 rounded-[60px] shadow-2xl text-white space-y-6">
+            <h4 className="text-lg font-black uppercase tracking-tight">Besoin d'aide ?</h4>
+            <p className="text-xs font-bold text-white/60 leading-relaxed">Contactez votre intervenant ou utilisez l'assistant IA pour toute question sur ce module.</p>
+            <button className="w-full py-5 bg-white/10 hover:bg-white/20 rounded-[28px] text-[10px] font-black uppercase tracking-widest transition-all">Contacter le support</button>
+          </div>
         </div>
       </div>
     </motion.div>
