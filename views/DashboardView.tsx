@@ -62,20 +62,33 @@ const DashboardView: React.FC<Props> = ({ role, userName, onLogout, onOpenChat }
 
   // Real-time Sync
   useEffect(() => {
+    if (!auth.currentUser) {
+      setLoading(false);
+      return;
+    }
+
     const unsubCourses = onSnapshot(collection(db, 'courses'), (snapshot) => {
       const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Course));
       setLocalCourses(data.length > 0 ? data : COURSES);
-    }, (error) => handleFirestoreError(error, OperationType.GET, 'courses'));
+    }, (error) => {
+      console.error("Courses listener error:", error);
+      // Only report if it's not a permission error during logout/demo
+      if (auth.currentUser) handleFirestoreError(error, OperationType.GET, 'courses');
+    });
 
     const unsubMissions = onSnapshot(collection(db, 'missions'), (snapshot) => {
       const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Mission));
       setLocalMissions(data.length > 0 ? data : MISSIONS);
-    }, (error) => handleFirestoreError(error, OperationType.GET, 'missions'));
+    }, (error) => {
+      if (auth.currentUser) handleFirestoreError(error, OperationType.GET, 'missions');
+    });
 
     const unsubNotifications = onSnapshot(query(collection(db, 'notifications'), orderBy('createdAt', 'desc')), (snapshot) => {
       const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as unknown as Notification));
       setLocalNotifications(data.length > 0 ? data : NOTIFICATIONS);
-    }, (error) => handleFirestoreError(error, OperationType.GET, 'notifications'));
+    }, (error) => {
+      if (auth.currentUser) handleFirestoreError(error, OperationType.GET, 'notifications');
+    });
 
     let unsubUsers = () => {};
     if (role === 'admin') {
@@ -101,20 +114,26 @@ const DashboardView: React.FC<Props> = ({ role, userName, onLogout, onOpenChat }
         
         setLocalStudents(students.length > 0 ? students : STUDENTS);
         setLocalLecturers(lecturers.length > 0 ? lecturers : LECTURERS);
-      }, (error) => handleFirestoreError(error, OperationType.GET, 'users'));
+      }, (error) => {
+        if (auth.currentUser) handleFirestoreError(error, OperationType.GET, 'users');
+      });
     }
 
     const unsubSessions = onSnapshot(collection(db, 'sessions'), (snapshot) => {
       const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Session));
       setLocalSessions(data.length > 0 ? data : SESSIONS);
-    }, (error) => handleFirestoreError(error, OperationType.GET, 'sessions'));
+    }, (error) => {
+      if (auth.currentUser) handleFirestoreError(error, OperationType.GET, 'sessions');
+    });
 
     let unsubApplications = () => {};
     if (role === 'admin') {
       unsubApplications = onSnapshot(query(collection(db, 'applications'), orderBy('createdAt', 'desc')), (snapshot) => {
         const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         setLocalApplications(data);
-      }, (error) => handleFirestoreError(error, OperationType.GET, 'applications'));
+      }, (error) => {
+        if (auth.currentUser) handleFirestoreError(error, OperationType.GET, 'applications');
+      });
     }
 
     setLoading(false);
@@ -127,7 +146,7 @@ const DashboardView: React.FC<Props> = ({ role, userName, onLogout, onOpenChat }
       unsubSessions();
       unsubApplications();
     };
-  }, [role]);
+  }, [role, auth.currentUser?.uid]);
 
   const selectedCourse = localCourses.find(c => c.id === selectedCourseId);
   const selectedMission = localMissions.find(m => m.id === selectedMissionId);
@@ -293,6 +312,45 @@ const DashboardView: React.FC<Props> = ({ role, userName, onLogout, onOpenChat }
     }
   };
 
+  const handleSeedData = async () => {
+    if (!confirm("Voulez-vous peupler la base de données avec les données de démonstration ?")) return;
+    
+    try {
+      setLoading(true);
+      // Seed Students
+      for (const student of STUDENTS) {
+        await setDoc(doc(db, 'users', student.id), {
+          name: student.name,
+          email: student.email,
+          role: 'student',
+          track: student.track,
+          progress: student.progress,
+          status: student.status,
+          absences: student.absences,
+          createdAt: serverTimestamp()
+        });
+      }
+      // Seed Lecturers
+      for (const lecturer of LECTURERS) {
+        await setDoc(doc(db, 'users', lecturer.id), {
+          name: lecturer.name,
+          email: lecturer.email,
+          role: 'professor',
+          specialty: lecturer.specialty,
+          avatar: lecturer.avatar,
+          joinedDate: lecturer.joinedDate,
+          createdAt: serverTimestamp()
+        });
+      }
+      alert("Données de démonstration ajoutées avec succès !");
+    } catch (error) {
+      console.error("Error seeding data:", error);
+      alert("Erreur lors de l'ajout des données.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex h-screen items-center justify-center bg-[#F4F7FE]">
@@ -437,7 +495,18 @@ const DashboardView: React.FC<Props> = ({ role, userName, onLogout, onOpenChat }
                           <p className="text-[8px] font-bold text-[#A3AED0] uppercase tracking-widest">Score</p>
                         </div>
                       </div>
-                      <button onClick={() => setShowProfile(false)} className="w-full py-5 bg-[#2B3674] text-white rounded-[28px] font-black uppercase tracking-widest text-[10px]">Fermer le profil</button>
+                      <div className="flex flex-col gap-3">
+                        <button onClick={() => setShowProfile(false)} className="w-full py-5 bg-[#F4F7FE] text-[#2B3674] rounded-[28px] font-black uppercase tracking-widest text-[10px] border border-white shadow-sm hover:bg-white transition-all">Fermer le profil</button>
+                        <button 
+                          onClick={() => {
+                            setShowProfile(false);
+                            onLogout();
+                          }} 
+                          className="w-full py-5 bg-red-50 text-red-600 rounded-[28px] font-black uppercase tracking-widest text-[10px] border border-red-100 shadow-sm hover:bg-red-600 hover:text-white transition-all flex items-center justify-center gap-2"
+                        >
+                          <LogOut size={14} /> Déconnexion
+                        </button>
+                      </div>
                     </div>
                   </motion.div>
                 </div>
@@ -472,6 +541,7 @@ const DashboardView: React.FC<Props> = ({ role, userName, onLogout, onOpenChat }
                   lecturers={localLecturers} 
                   onManageAccess={(l) => setManagingAccessLecturer(l)}
                   onAddUser={() => setIsAddingUser(true)}
+                  onSeedData={handleSeedData}
                 />
               )}
 
@@ -1193,7 +1263,7 @@ const AdminTowerDashboard: React.FC<{ students: Student[], sessions: Session[] }
 
 // --- COMPOSANT ADMIN : GESTION DES UTILISATEURS ---
 
-const AdminUsersView: React.FC<{ students: Student[], lecturers: Lecturer[], onManageAccess: (l: Lecturer) => void, onAddUser: () => void }> = ({ students, lecturers, onManageAccess, onAddUser }) => {
+const AdminUsersView: React.FC<{ students: Student[], lecturers: Lecturer[], onManageAccess: (l: Lecturer) => void, onAddUser: () => void, onSeedData: () => void }> = ({ students, lecturers, onManageAccess, onAddUser, onSeedData }) => {
   const [subTab, setSubTab] = useState<'students' | 'lecturers'>('students');
 
   const handleExportCSV = () => {
@@ -1234,6 +1304,12 @@ const AdminUsersView: React.FC<{ students: Student[], lecturers: Lecturer[], onM
              </div>
           </div>
           <div className="flex flex-wrap gap-3 md:gap-4 w-full md:w-auto">
+             <button 
+                onClick={onSeedData}
+                className="flex-1 md:flex-none px-6 md:px-8 py-3 md:py-4 bg-amber-50 text-amber-600 rounded-xl md:rounded-2xl font-black text-[10px] md:text-xs uppercase tracking-widest border border-amber-100 shadow-sm flex items-center justify-center gap-2 md:gap-3 hover:bg-amber-100 transition-all"
+             >
+                <Database size={16} className="md:w-[18px] md:h-[18px]" /> Demo Data
+             </button>
              <button 
                 onClick={handleExportCSV}
                 className="flex-1 md:flex-none px-6 md:px-8 py-3 md:py-4 bg-white text-[#2B3674] rounded-xl md:rounded-2xl font-black text-[10px] md:text-xs uppercase tracking-widest border border-slate-100 shadow-sm flex items-center justify-center gap-2 md:gap-3 hover:bg-slate-50 transition-all"

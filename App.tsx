@@ -57,6 +57,7 @@ const App: React.FC = () => {
         // However, for simplicity in this prototype, we'll just let handleLogout handle the view state
         setUserRole(null);
         setUserName('');
+        setView('home');
       }
       setLoading(false);
     });

@@ -12,11 +12,14 @@ export const LECTURERS: Lecturer[] = [
   { id: 'prof1', name: 'Dr. Karimi', email: 'karimi@expert.ma', specialty: 'IA & Data', avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Karimi', joinedDate: '12/01/2025' },
   { id: 'prof2', name: 'Mme. Tazi', email: 'tazi@cinema.ma', specialty: 'Réalisation', avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Tazi', joinedDate: '15/02/2025' },
   { id: 'prof3', name: 'M. Bennani', email: 'bennani@robot.ma', specialty: 'Systèmes Embarqués', avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Bennani', joinedDate: '01/03/2025' },
-  { id: 'prof4', name: 'Dr. Alami', email: 'alami@web.ma', specialty: 'Fullstack Dev', avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Alami', joinedDate: '10/03/2025' }
+  { id: 'prof4', name: 'Dr. Alami', email: 'alami@web.ma', specialty: 'Fullstack Dev', avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Alami', joinedDate: '10/03/2025' },
+  { id: 'prof5', name: 'Mme. Mansouri', email: 'mansouri@design.ma', specialty: 'UX/UI Design', avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Mansouri', joinedDate: '20/03/2025' },
+  { id: 'prof6', name: 'M. Jabri', email: 'jabri@cyber.ma', specialty: 'Cybersécurité', avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Jabri', joinedDate: '25/03/2025' }
 ];
 
 export const SESSIONS: Session[] = [
-  { id: 'sess2025', name: 'Promotion Excellence 2025', startDate: '2025-01-01', endDate: '2025-06-30', isActive: true, activeModuleIds: ['1', '2'] }
+  { id: 'sess2025', name: 'Promotion Excellence 2025', startDate: '2025-01-01', endDate: '2025-06-30', isActive: true, activeModuleIds: ['1', '2'] },
+  { id: 'sess2026', name: 'Promotion Innovation 2026', startDate: '2026-01-01', endDate: '2026-12-31', isActive: false, activeModuleIds: [] }
 ];
 
 export const COURSES: Course[] = [
@@ -98,7 +101,15 @@ export const STUDENTS: Student[] = [
   { id: 's5', name: 'Omar Chraibi', email: 'omar@chraibi.ma', track: 'Robotique', progress: 60, status: 'active', absences: 2 },
   { id: 's6', name: 'Kenza El Amrani', email: 'kenza@amrani.ma', track: 'Audiovisuel', progress: 85, status: 'active', absences: 1 },
   { id: 's7', name: 'Mehdi Filali', email: 'mehdi@filali.ma', track: 'Code & IA', progress: 50, status: 'active', absences: 3 },
-  { id: 's8', name: 'Sofia Rahmouni', email: 'sofia@rahmouni.ma', track: 'Robotique', progress: 10, status: 'pending', absences: 8 }
+  { id: 's8', name: 'Sofia Rahmouni', email: 'sofia@rahmouni.ma', track: 'Robotique', progress: 10, status: 'pending', absences: 8 },
+  { id: 's9', name: 'Hassan Idrissi', email: 'hassan@idrissi.ma', track: 'Code & IA', progress: 30, status: 'active', absences: 2 },
+  { id: 's10', name: 'Meryem Zahid', email: 'meryem@zahid.ma', track: 'Audiovisuel', progress: 95, status: 'active', absences: 0 },
+  { id: 's11', name: 'Anas Belkhayat', email: 'anas@belkhayat.ma', track: 'Robotique', progress: 45, status: 'active', absences: 5 },
+  { id: 's12', name: 'Salma Oudghiri', email: 'salma@oudghiri.ma', track: 'Code & IA', progress: 20, status: 'pending', absences: 7 },
+  { id: 's13', name: 'Youssef Slaoui', email: 'youssef@slaoui.ma', track: 'Robotique', progress: 70, status: 'active', absences: 1 },
+  { id: 's14', name: 'Nadia Guessous', email: 'nadia@guessous.ma', track: 'Audiovisuel', progress: 55, status: 'active', absences: 2 },
+  { id: 's15', name: 'Tariq Berrada', email: 'tariq@berrada.ma', track: 'Code & IA', progress: 80, status: 'active', absences: 0 },
+  { id: 's16', name: 'Zineb Lahlou', email: 'zineb@lahlou.ma', track: 'Robotique', progress: 35, status: 'active', absences: 4 }
 ];
 
 export const NOTIFICATIONS: Notification[] = [

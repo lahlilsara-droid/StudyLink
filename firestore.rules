@@ -14,17 +14,24 @@ service cloud.firestore {
 
     function isAdmin() {
       return isAuthenticated() &&
-        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
-          (request.auth.token.email == "lahlilsara@gmail.com" && request.auth.token.email_verified == true));
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
+         (request.auth.token.email == "lahlilsara@gmail.com" && request.auth.token.email_verified == true));
     }
 
     function isProfessor() {
-      return isAuthenticated() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'professor';
+      return isAuthenticated() && 
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'professor';
     }
 
     // ===============================================================
     // Rules
     // ===============================================================
+
+    match /test/connection {
+      allow read: if true;
+    }
 
     match /users/{userId} {
       allow read: if isAuthenticated() && (isOwner(userId) || isAdmin());
